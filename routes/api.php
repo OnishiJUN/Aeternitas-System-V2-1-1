@@ -1,0 +1,43 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\PayrollController;
+use App\Http\Controllers\Api\DepartmentController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "api" middleware group. Make something great!
+|
+*/
+
+// Public routes
+Route::post('/auth/login', [AuthController::class, 'login']);
+
+// Protected routes
+Route::middleware('auth:sanctum')->group(function () {
+    // Auth routes
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/auth/user', [AuthController::class, 'user']);
+    
+    // Employee routes
+    Route::apiResource('employees', EmployeeController::class);
+    Route::get('/employees/{employee}/payroll', [EmployeeController::class, 'payroll']);
+    
+    // Department routes
+    Route::apiResource('departments', DepartmentController::class);
+    Route::get('/departments/{department}/employees', [DepartmentController::class, 'employees']);
+    
+    // Payroll routes
+    Route::apiResource('payrolls', PayrollController::class);
+    Route::post('/payrolls/{payroll}/process', [PayrollController::class, 'process']);
+    Route::get('/payrolls/reports/summary', [PayrollController::class, 'summary']);
+    Route::get('/payrolls/reports/monthly', [PayrollController::class, 'monthlyReport']);
+});
