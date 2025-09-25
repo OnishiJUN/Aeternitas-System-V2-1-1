@@ -75,8 +75,14 @@ Route::middleware('auth')->group(function () {
         // General attendance routes
         Route::get('/daily', [App\Http\Controllers\Web\AttendanceController::class, 'daily'])->name('daily');
         Route::get('/timekeeping', [App\Http\Controllers\Web\AttendanceController::class, 'timekeeping'])->name('timekeeping');
-        Route::get('/schedule', [App\Http\Controllers\Web\AttendanceController::class, 'schedule'])->name('schedule');
         Route::get('/statistics', [App\Http\Controllers\Web\AttendanceController::class, 'getStatistics'])->name('statistics');
+        
+        // Schedule routes
+        Route::prefix('schedule')->name('schedule.')->group(function () {
+            Route::get('/', [App\Http\Controllers\Web\AttendanceController::class, 'schedule'])->name('index');
+            Route::get('/reports', [App\Http\Controllers\Web\AttendanceController::class, 'scheduleReports'])->name('reports');
+            Route::get('/templates', [App\Http\Controllers\Web\AttendanceController::class, 'scheduleTemplates'])->name('templates');
+        });
         
         // Overtime routes
         Route::get('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'index'])->name('overtime');

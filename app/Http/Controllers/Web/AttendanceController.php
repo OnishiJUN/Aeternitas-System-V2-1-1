@@ -96,7 +96,7 @@ class AttendanceController extends Controller
     /**
      * Display schedule page
      */
-    public function schedule(Request $request)
+public function schedule(Request $request)
     {
         $week = $request->get('week', now()->format('Y-\WW'));
         $weekStart = Carbon::parse($week . '1'); // Start of week (Monday)
@@ -113,7 +113,46 @@ class AttendanceController extends Controller
 
         $user = Auth::user();
 
-        return view('attendance.schedule', compact('employees', 'weekStart', 'weekEnd', 'user'));
+        return view('attendance.schedule.index', compact('employees', 'weekStart', 'weekEnd', 'user'));
+    }
+
+    /**
+     * Display schedule reports page
+     */
+    public function scheduleReports(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Get report data based on filters
+        $reportType = $request->get('report_type', 'weekly');
+        $employeeId = $request->get('employee_id');
+        $departmentId = $request->get('department_id');
+        $dateRange = $request->get('date_range');
+        
+        // Sample data for now - replace with actual data fetching
+        $employees = Employee::with('department')->get();
+        $departments = \App\Models\Department::all();
+        
+        return view('attendance.schedule.reports', compact('user', 'employees', 'departments', 'reportType', 'employeeId', 'departmentId', 'dateRange'));
+    }
+
+    /**
+     * Display schedule templates page
+     */
+    public function scheduleTemplates(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Get template data based on filters
+        $templateType = $request->get('template_type');
+        $departmentId = $request->get('department_id');
+        $status = $request->get('status');
+        
+        // Sample data for now - replace with actual data fetching
+        $employees = Employee::with('department')->get();
+        $departments = \App\Models\Department::all();
+        
+        return view('attendance.schedule.templates', compact('user', 'employees', 'departments', 'templateType', 'departmentId', 'status'));
     }
 
     /**
