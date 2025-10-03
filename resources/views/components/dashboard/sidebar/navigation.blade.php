@@ -74,10 +74,10 @@
                     <span>Timekeeping</span>
                 </a>
                 
-                <!-- Schedule -->
-                <a href="{{ route('attendance.schedule.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.schedule.index' ? 'bg-white text-blue-600' : '' }}">
-                    <i class="fas fa-calendar-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.schedule.index' ? 'text-blue-600' : '' }}"></i>
-                    <span>Schedule</span>
+                <!-- Schedule Management -->
+                <a href="{{ route('schedule.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule.index' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-calendar-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'schedule.index' ? 'text-blue-600' : '' }}"></i>
+                    <span>Schedule Management</span>
                 </a>
                 
                 <!-- Overtime -->

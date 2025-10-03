@@ -298,3 +298,4 @@ function createNewTemplate() {
 }
 </script>
 @endsection
+

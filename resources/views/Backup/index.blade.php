@@ -486,71 +486,95 @@ function getPeriodData(periodId) {
 }
 
 
-// Generate Schedule Summary
+/**
+ * Generate Schedule Summary Statistics
+ * @param {Object} week - Week data object
+ */
 function generateScheduleSummary(week) {
     const container = document.getElementById('scheduleSummaryContainer');
+    if (!container) return;
     
     // Calculate statistics for day-based view
-    const totalShifts = 5; // morning, afternoon, evening, night, off
-    const activeShifts = 4; // excluding off
-    const totalStaffHours = 28; // sample calculation
-    const weekendCoverage = 2; // limited weekend shifts
+    const statistics = calculateScheduleStatistics(week);
     
-    container.innerHTML = `
+    container.innerHTML = createSummaryCards(statistics);
+}
+
+/**
+ * Calculate schedule statistics
+ * @param {Object} week - Week data object
+ * @returns {Object} Statistics object
+ */
+function calculateScheduleStatistics(week) {
+    return {
+        totalShifts: 5,        // morning, afternoon, evening, night, off
+        activeShifts: 4,       // excluding off
+        totalStaffHours: 28,   // sample calculation
+        weekendCoverage: 2     // limited weekend shifts
+    };
+}
+
+/**
+ * Create summary cards HTML
+ * @param {Object} stats - Statistics object
+ * @returns {string} HTML string
+ */
+function createSummaryCards(stats) {
+    const cards = [
+        {
+            title: 'Total Shifts',
+            value: stats.totalShifts,
+            icon: 'fas fa-calendar-alt',
+            bgColor: 'bg-blue-100',
+            textColor: 'text-blue-600'
+        },
+        {
+            title: 'Active Shifts',
+            value: stats.activeShifts,
+            icon: 'fas fa-clock',
+            bgColor: 'bg-green-100',
+            textColor: 'text-green-600'
+        },
+        {
+            title: 'Staff Hours',
+            value: stats.totalStaffHours,
+            icon: 'fas fa-users',
+            bgColor: 'bg-yellow-100',
+            textColor: 'text-yellow-600'
+        },
+        {
+            title: 'Weekend Coverage',
+            value: stats.weekendCoverage,
+            icon: 'fas fa-calendar-week',
+            bgColor: 'bg-purple-100',
+            textColor: 'text-purple-600'
+        }
+    ];
+    
+    return `
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-calendar-alt text-blue-600"></i>
-                        </div>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-gray-500">Total Shifts</p>
-                        <p class="text-lg font-semibold text-gray-900">${totalShifts}</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-clock text-green-600"></i>
-                        </div>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-gray-500">Active Shifts</p>
-                        <p class="text-lg font-semibold text-gray-900">${activeShifts}</p>
+            ${cards.map(card => createSummaryCard(card)).join('')}
+        </div>
+    `;
+}
+
+/**
+ * Create individual summary card
+ * @param {Object} card - Card data object
+ * @returns {string} HTML string
+ */
+function createSummaryCard(card) {
+    return `
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 ${card.bgColor} rounded-full flex items-center justify-center">
+                        <i class="${card.icon} ${card.textColor}"></i>
                     </div>
                 </div>
-            </div>
-            
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-users text-yellow-600"></i>
-                        </div>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-gray-500">Staff Hours</p>
-                        <p class="text-lg font-semibold text-gray-900">${totalStaffHours}</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-calendar-week text-purple-600"></i>
-                        </div>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-gray-500">Weekend Coverage</p>
-                        <p class="text-lg font-semibold text-gray-900">${weekendCoverage}</p>
-                    </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">${card.title}</p>
+                    <p class="text-lg font-semibold text-gray-900">${card.value}</p>
                 </div>
             </div>
         </div>

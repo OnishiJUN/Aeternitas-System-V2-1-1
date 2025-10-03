@@ -39,6 +39,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('departments', DepartmentController::class);
     Route::get('/departments/{department}/employees', [DepartmentController::class, 'employees'])->name('departments.employees');
     
+    // Schedule routes
+    Route::resource('schedule', App\Http\Controllers\Web\ScheduleController::class);
+    Route::post('/schedule/bulk-create', [App\Http\Controllers\Web\ScheduleController::class, 'bulkCreate'])->name('schedule.bulk-create');
+    Route::get('/schedule/statistics', [App\Http\Controllers\Web\ScheduleController::class, 'getStatistics'])->name('schedule.statistics');
+    
     // Payroll routes
     Route::resource('payrolls', PayrollController::class);
     Route::post('/payrolls/{payroll}/process', [PayrollController::class, 'process'])->name('payrolls.process');
@@ -76,6 +81,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/daily', [App\Http\Controllers\Web\AttendanceController::class, 'daily'])->name('daily');
         Route::get('/timekeeping', [App\Http\Controllers\Web\AttendanceController::class, 'timekeeping'])->name('timekeeping');
         Route::get('/statistics', [App\Http\Controllers\Web\AttendanceController::class, 'getStatistics'])->name('statistics');
+        
+            // Attendance record management routes
+        Route::get('/create-record', [App\Http\Controllers\Web\AttendanceController::class, 'createRecord'])->name('create-record');
+        Route::post('/store-record', [App\Http\Controllers\Web\AttendanceController::class, 'storeRecord'])->name('store-record');
         
         // Schedule routes
         Route::prefix('schedule')->name('schedule.')->group(function () {
