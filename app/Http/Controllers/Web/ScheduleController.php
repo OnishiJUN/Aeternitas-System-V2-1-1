@@ -94,7 +94,7 @@ class ScheduleController extends Controller
 
         $user = Auth::user();
 
-        return view('schedule.index', compact(
+        return view('attendance.schedule.index', compact(
             'departments',
             'employees',
             'allEmployees',
@@ -128,7 +128,7 @@ class ScheduleController extends Controller
         // Get current filter state for back navigation
         $currentFilters = $this->getFilterState($request);
 
-        return view('schedule.create', compact('employee', 'employees', 'departments', 'date', 'user', 'currentFilters'));
+        return view('attendance.schedule.create', compact('employee', 'employees', 'departments', 'date', 'user', 'currentFilters'));
     }
 
     /**
@@ -200,7 +200,7 @@ class ScheduleController extends Controller
         // Get current filter state for back navigation
         $currentFilters = $this->getFilterState($request);
 
-        return view('schedule.show', compact('schedule', 'user', 'currentFilters'));
+        return view('attendance.schedule.show', compact('schedule', 'user', 'currentFilters'));
     }
 
     /**
@@ -214,7 +214,7 @@ class ScheduleController extends Controller
         // Get current filter state for back navigation
         $currentFilters = $this->getFilterState($request);
 
-        return view('schedule.edit', compact('schedule', 'user', 'currentFilters'));
+        return view('attendance.schedule.edit', compact('schedule', 'user', 'currentFilters'));
     }
 
     /**

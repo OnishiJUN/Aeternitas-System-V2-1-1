@@ -39,10 +39,18 @@ Route::middleware('auth')->group(function () {
     Route::resource('departments', DepartmentController::class);
     Route::get('/departments/{department}/employees', [DepartmentController::class, 'employees'])->name('departments.employees');
     
-    // Schedule routes
-    Route::resource('schedule', App\Http\Controllers\Web\ScheduleController::class);
-    Route::post('/schedule/bulk-create', [App\Http\Controllers\Web\ScheduleController::class, 'bulkCreate'])->name('schedule.bulk-create');
-    Route::get('/schedule/statistics', [App\Http\Controllers\Web\ScheduleController::class, 'getStatistics'])->name('schedule.statistics');
+    // Schedule Management routes (standalone)
+    Route::prefix('schedule')->name('schedule.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Web\ScheduleController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\Web\ScheduleController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\Web\ScheduleController::class, 'store'])->name('store');
+        Route::get('/{schedule}', [App\Http\Controllers\Web\ScheduleController::class, 'show'])->name('show');
+        Route::get('/{schedule}/edit', [App\Http\Controllers\Web\ScheduleController::class, 'edit'])->name('edit');
+        Route::put('/{schedule}', [App\Http\Controllers\Web\ScheduleController::class, 'update'])->name('update');
+        Route::delete('/{schedule}', [App\Http\Controllers\Web\ScheduleController::class, 'destroy'])->name('destroy');
+        Route::post('/bulk-create', [App\Http\Controllers\Web\ScheduleController::class, 'bulkCreate'])->name('bulk-create');
+        Route::get('/statistics', [App\Http\Controllers\Web\ScheduleController::class, 'getStatistics'])->name('statistics');
+    });
     
     // Payroll routes
     Route::resource('payrolls', PayrollController::class);
@@ -86,9 +94,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/create-record', [App\Http\Controllers\Web\AttendanceController::class, 'createRecord'])->name('create-record');
         Route::post('/store-record', [App\Http\Controllers\Web\AttendanceController::class, 'storeRecord'])->name('store-record');
         
-        // Schedule routes
-        Route::prefix('schedule')->name('schedule.')->group(function () {
-            Route::get('/', [App\Http\Controllers\Web\AttendanceController::class, 'schedule'])->name('index');
+        // Attendance Schedule Reports routes (separate from main schedule management)
+        Route::prefix('schedule')->name('attendance.schedule.')->group(function () {
             Route::get('/reports', [App\Http\Controllers\Web\AttendanceController::class, 'scheduleReports'])->name('reports');
             Route::get('/templates', [App\Http\Controllers\Web\AttendanceController::class, 'scheduleTemplates'])->name('templates');
         });
