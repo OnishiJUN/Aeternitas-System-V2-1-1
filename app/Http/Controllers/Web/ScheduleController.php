@@ -395,4 +395,96 @@ class ScheduleController extends Controller
 
         return response()->json($statistics);
     }
+
+    /**
+     * Bulk delete multiple schedules
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'schedule_ids' => 'required|array|min:1',
+            'schedule_ids.*' => 'string|exists:employee_schedules,id'
+        ]);
+
+        $scheduleIds = $request->input('schedule_ids');
+        $user = Auth::user();
+
+        try {
+            // Get schedules before deletion for logging
+            $schedules = EmployeeSchedule::whereIn('id', $scheduleIds)->get();
+            
+            // Check for locked or past schedules
+            $lockedSchedules = $schedules->filter(function($schedule) {
+                return $schedule->date < now()->subDays(7); // Lock schedules older than 7 days
+            });
+
+            $deletableSchedules = $schedules->reject(function($schedule) {
+                return $schedule->date < now()->subDays(7);
+            });
+
+            $deletedCount = 0;
+            $errors = [];
+
+            if ($deletableSchedules->count() > 0) {
+                // Delete the deletable schedules
+                $deletedCount = EmployeeSchedule::whereIn('id', $deletableSchedules->pluck('id'))->delete();
+                
+                // Log the bulk deletion for audit purposes
+                \Log::info('Bulk schedule deletion', [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'deleted_count' => $deletedCount,
+                    'deleted_schedule_ids' => $deletableSchedules->pluck('id')->toArray(),
+                    'timestamp' => now()
+                ]);
+            }
+
+            if ($lockedSchedules->count() > 0) {
+                $errors[] = "Cannot delete {$lockedSchedules->count()} schedule(s) older than 7 days";
+            }
+
+            if ($deletedCount > 0) {
+                $message = "Successfully deleted {$deletedCount} schedule(s)";
+                if (!empty($errors)) {
+                    $message .= ". " . implode('. ', $errors);
+                }
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'deleted_count' => $deletedCount,
+                    'errors' => $errors
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No schedules were deleted',
+                    'errors' => $errors
+                ], 400);
+            }
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Log::error('Bulk schedule deletion failed - Database error', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'schedule_ids' => $scheduleIds
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Database error occurred while deleting schedules. Please check if schedules are referenced by other records.'
+            ], 500);
+        } catch (\Exception $e) {
+            \Log::error('Bulk schedule deletion failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'schedule_ids' => $scheduleIds
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting schedules'
+            ], 500);
+        }
+    }
 }

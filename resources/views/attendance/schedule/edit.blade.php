@@ -154,11 +154,19 @@
 </div>
 
 <script>
-// Handle form actions dynamically
+// Handle form actions dynamically and initialize
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('scheduleForm');
     const updateBtn = document.getElementById('updateBtn');
     const deleteBtn = document.getElementById('deleteBtn');
+    const statusSelect = document.getElementById('status');
+    
+    // Initialize time fields visibility
+    if (statusSelect.value === 'Working' || statusSelect.value === 'Overtime') {
+        document.getElementById('timeFields').style.display = 'grid';
+    } else {
+        document.getElementById('timeFields').style.display = 'none';
+    }
     
     // Update button - set form to update action
     updateBtn.addEventListener('click', function(e) {
@@ -216,14 +224,5 @@ document.getElementById('status').addEventListener('change', function() {
     }
 });
 
-// Initialize time fields visibility on page load
-document.addEventListener('DOMContentLoaded', function() {
-    const statusSelect = document.getElementById('status');
-    if (statusSelect.value === 'Working' || statusSelect.value === 'Overtime') {
-        document.getElementById('timeFields').style.display = 'grid';
-    } else {
-        document.getElementById('timeFields').style.display = 'none';
-    }
-});
 </script>
 @endsection

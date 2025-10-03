@@ -4,6 +4,24 @@
 
 @section('content')
 <div class="min-h-screen bg-gray-50">
+<style>
+.delete-mode {
+    background-color: #fef2f2 !important;
+}
+
+.delete-mode .schedule-checkbox {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+</style>
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -15,16 +33,6 @@
                             Employee Schedule Management
                         </h1>
                         <p class="mt-2 text-sm text-gray-600">Manage employee work schedules and time allocations efficiently</p>
-                    </div>
-                    <div class="flex space-x-3">
-                        <a href="{{ route('schedule.create', array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery])) }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm">
-                            <i class="fas fa-plus mr-2"></i>
-                            Add Schedule
-                        </a>
-                        <button onclick="openBulkModal()" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors shadow-sm">
-                            <i class="fas fa-layer-group mr-2"></i>
-                            Bulk Create
-                        </button>
                     </div>
                 </div>
             </div>
@@ -90,7 +98,30 @@
                         </select>
                     </div>
                     
-                    <div class="sm:col-span-2 lg:col-span-4 flex justify-end">
+                    <div class="sm:col-span-2 lg:col-span-4 flex justify-between items-center">
+                        <div class="flex space-x-3">
+                            <a href="{{ route('schedule.create', array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery])) }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm">
+                                <i class="fas fa-plus mr-2"></i>
+                                Add Schedule
+                            </a>
+                            <button type="button" onclick="openBulkModalAjax(event)" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors shadow-sm">
+                                <i class="fas fa-layer-group mr-2"></i>
+                                Bulk Create
+                            </button>
+                            <button type="button" id="deleteModeBtn" onclick="toggleDeleteMode()" class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-lg font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors shadow-sm">
+                                <i class="fas fa-trash mr-2"></i>
+                                Delete Mode
+                            </button>
+                            <button type="button" id="bulkDeleteBtn" onclick="openBulkDeleteModal()" class="inline-flex items-center px-4 py-2 bg-red-700 border border-transparent rounded-lg font-medium text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors shadow-sm hidden">
+                                <i class="fas fa-trash mr-2"></i>
+                                <span id="bulkDeleteText">Delete Selected</span>
+                            </button>
+                            <button type="button" id="cancelDeleteBtn" onclick="exitDeleteMode()" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-lg font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors shadow-sm hidden">
+                                <i class="fas fa-times mr-2"></i>
+                                Cancel
+                            </button>
+                        </div>
+                        
                         <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                             <i class="fas fa-search mr-2"></i>
                             Apply Filters
@@ -108,18 +139,29 @@
             <!-- Calendar Header -->
             <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-5 border-b border-gray-200">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-xl font-semibold text-gray-900 flex items-center">
-                            <i class="fas fa-calendar-alt mr-2 text-blue-600"></i>
-                            {{ Carbon\Carbon::create($selectedYear, $selectedMonth)->format('F Y') }} Schedule
-                        </h3>
-                        <p class="text-sm text-gray-600 mt-1">
-                            <i class="fas fa-users mr-1"></i>
-                            {{ $employees->count() }} employee{{ $employees->count() !== 1 ? 's' : '' }} 
-                            @if($selectedDepartment)
-                                in {{ $departments->where('id', $selectedDepartment)->first()->name ?? 'selected department' }}
-                            @endif
-                        </p>
+                    <div class="flex items-center space-x-4">
+                        <div>
+                            <h3 class="text-xl font-semibold text-gray-900 flex items-center">
+                                <i class="fas fa-calendar-alt mr-2 text-blue-600"></i>
+                                {{ Carbon\Carbon::create($selectedYear, $selectedMonth)->format('F Y') }} Schedule
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">
+                                <i class="fas fa-users mr-1"></i>
+                                {{ $employees->count() }} employee{{ $employees->count() !== 1 ? 's' : '' }} 
+                                @if($selectedDepartment)
+                                    in {{ $departments->where('id', $selectedDepartment)->first()->name ?? 'selected department' }}
+                                @endif
+                            </p>
+                        </div>
+                        <div id="selectAllContainer" class="flex items-center space-x-2 hidden">
+                            <div class="flex items-center bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                <i class="fas fa-exclamation-triangle text-red-600 mr-2"></i>
+                                <label class="flex items-center text-sm text-red-700 cursor-pointer">
+                                    <input type="checkbox" id="selectAllSchedules" class="rounded border-gray-300 text-red-600 shadow-sm focus:border-red-300 focus:ring focus:ring-red-200 focus:ring-opacity-50 mr-2" onchange="toggleSelectAll()">
+                                    <span class="font-medium">Select All Schedules</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     <div class="flex items-center space-x-2 text-sm text-gray-600">
                         <span class="flex items-center">
@@ -183,6 +225,12 @@
                                     <td class="px-3 py-4 text-center border-l border-gray-200 hover:bg-gray-50 transition-colors">
                                         @if($schedule)
                                             <div class="inline-block">
+                                                <div class="flex items-center justify-center mb-2">
+                                                    <input type="checkbox" 
+                                                           class="schedule-checkbox rounded border-gray-300 text-red-600 shadow-sm focus:border-red-300 focus:ring focus:ring-red-200 focus:ring-opacity-50 mr-2 hidden" 
+                                                           value="{{ $schedule->id }}" 
+                                                           onchange="updateBulkDeleteButton()">
+                                                </div>
                                                 <div class="text-xs font-medium text-gray-900 mb-1">
                                                     {{ $schedule->status }}
                                                 </div>
@@ -400,7 +448,15 @@
 </div>
 
 <script>
-function openBulkModal() {
+// AJAX version to prevent form conflicts
+function openBulkModalAjax(event) {
+    // Prevent any form submission
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    // Open the modal
     document.getElementById('bulkModal').classList.remove('hidden');
 }
 
@@ -598,5 +654,213 @@ function updateSelectedCount() {
         countElement.classList.add('hidden');
     }
 }
+
+// Delete Mode Functions
+function toggleDeleteMode() {
+    const deleteModeBtn = document.getElementById('deleteModeBtn');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const selectAllContainer = document.getElementById('selectAllContainer');
+    const checkboxes = document.querySelectorAll('.schedule-checkbox');
+    
+    // Hide delete mode button and show action buttons
+    deleteModeBtn.classList.add('hidden');
+    bulkDeleteBtn.classList.remove('hidden');
+    cancelDeleteBtn.classList.remove('hidden');
+    selectAllContainer.classList.remove('hidden');
+    
+    // Show all checkboxes
+    checkboxes.forEach(checkbox => {
+        checkbox.classList.remove('hidden');
+    });
+    
+    // Add visual indicator that we're in delete mode
+    document.body.classList.add('delete-mode');
+}
+
+function exitDeleteMode() {
+    const deleteModeBtn = document.getElementById('deleteModeBtn');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const selectAllContainer = document.getElementById('selectAllContainer');
+    const checkboxes = document.querySelectorAll('.schedule-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAllSchedules');
+    
+    // Show delete mode button and hide action buttons
+    deleteModeBtn.classList.remove('hidden');
+    bulkDeleteBtn.classList.add('hidden');
+    cancelDeleteBtn.classList.add('hidden');
+    selectAllContainer.classList.add('hidden');
+    
+    // Hide all checkboxes and uncheck them
+    checkboxes.forEach(checkbox => {
+        checkbox.classList.add('hidden');
+        checkbox.checked = false;
+    });
+    
+    // Uncheck select all
+    selectAllCheckbox.checked = false;
+    
+    // Remove visual indicator
+    document.body.classList.remove('delete-mode');
+}
+
+// Bulk Delete Functions
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.schedule-checkbox:checked');
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+    const bulkDeleteText = document.getElementById('bulkDeleteText');
+    
+    if (checkboxes.length > 0) {
+        bulkDeleteBtn.classList.remove('hidden');
+        bulkDeleteText.textContent = `Delete Selected (${checkboxes.length})`;
+    } else {
+        bulkDeleteBtn.classList.add('hidden');
+    }
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAllSchedules');
+    const checkboxes = document.querySelectorAll('.schedule-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    
+    updateBulkDeleteButton();
+}
+
+function openBulkDeleteModal() {
+    const checkboxes = document.querySelectorAll('.schedule-checkbox:checked');
+    const count = checkboxes.length;
+    
+    if (count === 0) {
+        alert('Please select at least one schedule to delete.');
+        return;
+    }
+    
+    document.getElementById('bulkDeleteModal').classList.remove('hidden');
+    document.getElementById('deleteCount').textContent = count;
+}
+
+function closeBulkDeleteModal() {
+    document.getElementById('bulkDeleteModal').classList.add('hidden');
+}
+
+function confirmBulkDelete() {
+    const checkboxes = document.querySelectorAll('.schedule-checkbox:checked');
+    const scheduleIds = Array.from(checkboxes).map(checkbox => checkbox.value);
+    
+    // Show loading state
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+    confirmBtn.disabled = true;
+    
+    // Send AJAX request
+    const requestData = {
+        schedule_ids: scheduleIds
+    };
+    
+    fetch('{{ route("schedule.bulk-delete") }}', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            showNotification(data.message, 'success');
+            
+            // Exit delete mode
+            exitDeleteMode();
+            
+            // Reload the page to reflect changes
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('An error occurred while deleting schedules', 'error');
+    })
+    .finally(() => {
+        // Reset button state
+        confirmBtn.innerHTML = originalText;
+        confirmBtn.disabled = false;
+        closeBulkDeleteModal();
+    });
+}
+
+function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    }`;
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove notification after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
 </script>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div id="bulkDeleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-6 border w-96 shadow-lg rounded-lg bg-white">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>
+                    Confirm Bulk Delete
+                </h3>
+            </div>
+            <button onclick="closeBulkDeleteModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <p class="text-gray-700">
+                Are you sure you want to delete <span id="deleteCount" class="font-semibold text-red-600">0</span> schedule(s)?
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                This action cannot be undone. Schedules older than 7 days cannot be deleted.
+            </p>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeBulkDeleteModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button id="confirmDeleteBtn" onclick="confirmBulkDelete()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                <i class="fas fa-trash mr-2"></i>
+                Delete Schedules
+            </button>
+        </div>
+    </div>
+</div>
+
 @endsection
