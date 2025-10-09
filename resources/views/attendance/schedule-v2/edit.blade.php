@@ -219,8 +219,9 @@ document.getElementById('status').addEventListener('change', function() {
         timeFields.style.display = 'none';
         timeInField.required = false;
         timeOutField.required = false;
-        // Don't clear the values - just hide the fields
-        // The fields will still be submitted with the form even when hidden
+        // Clear the time values for non-working statuses to prevent conflicts
+        timeInField.value = '';
+        timeOutField.value = '';
     }
 });
 

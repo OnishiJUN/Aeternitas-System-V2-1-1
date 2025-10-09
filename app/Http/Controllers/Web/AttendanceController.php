@@ -256,7 +256,7 @@ public function schedule(Request $request)
 
         $user = Auth::user();
 
-        return view('attendance.schedule.index', compact('employees', 'weekStart', 'weekEnd', 'user'));
+        return view('attendance.schedule-v2.index', compact('employees', 'weekStart', 'weekEnd', 'user'));
     }
 
     /**

@@ -39,20 +39,6 @@ Route::middleware('auth')->group(function () {
     Route::resource('departments', DepartmentController::class);
     Route::get('/departments/{department}/employees', [DepartmentController::class, 'employees'])->name('departments.employees');
     
-    // Schedule Management routes (standalone)
-    Route::prefix('schedule')->name('schedule.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Web\ScheduleController::class, 'index'])->name('index');
-        Route::get('/create', [App\Http\Controllers\Web\ScheduleController::class, 'create'])->name('create');
-        Route::post('/', [App\Http\Controllers\Web\ScheduleController::class, 'store'])->name('store');
-        Route::get('/{schedule}', [App\Http\Controllers\Web\ScheduleController::class, 'show'])->name('show');
-        Route::get('/{schedule}/edit', [App\Http\Controllers\Web\ScheduleController::class, 'edit'])->name('edit');
-        Route::put('/{schedule}', [App\Http\Controllers\Web\ScheduleController::class, 'update'])->name('update');
-        Route::delete('/{schedule}', [App\Http\Controllers\Web\ScheduleController::class, 'destroy'])->name('destroy');
-        Route::post('/bulk-create', [App\Http\Controllers\Web\ScheduleController::class, 'bulkCreate'])->name('bulk-create');
-        Route::delete('/bulk-delete', [App\Http\Controllers\Web\ScheduleController::class, 'bulkDelete'])->name('bulk-delete');
-        Route::get('/statistics', [App\Http\Controllers\Web\ScheduleController::class, 'getStatistics'])->name('statistics');
-    });
-    
     // Schedule Management V2 routes
     Route::prefix('schedule-v2')->name('schedule-v2.')->group(function () {
         Route::get('/', [App\Http\Controllers\Web\ScheduleV2Controller::class, 'index'])->name('index');

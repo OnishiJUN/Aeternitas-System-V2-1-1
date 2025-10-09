@@ -774,7 +774,7 @@ function confirmBulkDelete() {
         schedule_ids: scheduleIds
     };
     
-    fetch('{{ route("schedule.bulk-delete") }}', {
+    fetch('{{ route("schedule-v2.bulk-delete") }}', {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',

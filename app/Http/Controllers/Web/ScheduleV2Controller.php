@@ -172,16 +172,28 @@ class ScheduleV2Controller extends Controller
                 ->withInput();
         }
 
-        EmployeeSchedule::create([
+        // Prepare schedule data
+        $scheduleData = [
             'employee_id' => $request->employee_id,
             'department_id' => $employee->department_id,
             'date' => $request->date,
-            'time_in' => $request->time_in,
-            'time_out' => $request->time_out,
             'status' => $request->status,
             'notes' => $request->notes,
             'created_by' => Auth::id(),
-        ]);
+        ];
+
+        // Handle time fields based on status
+        if (in_array($request->status, ['Working', 'Overtime'])) {
+            // For working statuses, use the provided time values
+            $scheduleData['time_in'] = $request->time_in;
+            $scheduleData['time_out'] = $request->time_out;
+        } else {
+            // For non-working statuses (Day Off, Leave, Holiday), set time values to null
+            $scheduleData['time_in'] = null;
+            $scheduleData['time_out'] = null;
+        }
+
+        EmployeeSchedule::create($scheduleData);
 
         // Get current filter state for redirect
         $filters = $this->getFilterState($request);
@@ -221,7 +233,7 @@ class ScheduleV2Controller extends Controller
     /**
      * Update the specified schedule V2
      */
-    public function update(Request $request, EmployeeSchedule $schedule)
+        public function update(Request $request, EmployeeSchedule $schedule)
     {
         $request->validate([
             'time_in' => 'sometimes|nullable|date_format:H:i',
@@ -242,12 +254,24 @@ class ScheduleV2Controller extends Controller
             }
         }
 
-        $schedule->update([
-            'time_in' => $request->time_in,
-            'time_out' => $request->time_out,
+        // Prepare update data
+        $updateData = [
             'status' => $request->status,
             'notes' => $request->notes,
-        ]);
+        ];
+
+        // Handle time fields based on status
+        if (in_array($request->status, ['Working', 'Overtime'])) {
+            // For working statuses, use the provided time values
+            $updateData['time_in'] = $request->time_in;
+            $updateData['time_out'] = $request->time_out;
+        } else {
+            // For non-working statuses (Day Off, Leave, Holiday), clear time values
+            $updateData['time_in'] = null;
+            $updateData['time_out'] = null;
+        }
+
+        $schedule->update($updateData);
 
         // Get current filter state for redirect
         $filters = $this->getFilterState($request);
@@ -302,16 +326,26 @@ class ScheduleV2Controller extends Controller
                         ->first();
 
                     if (!$existingSchedule) {
-                        EmployeeSchedule::create([
+                        // Prepare schedule data
+                        $scheduleData = [
                             'employee_id' => $employeeId,
                             'department_id' => $employee->department_id,
                             'date' => $date,
-                            'time_in' => $request->time_in,
-                            'time_out' => $request->time_out,
                             'status' => $request->status,
                             'notes' => $request->notes,
                             'created_by' => Auth::id(),
-                        ]);
+                        ];
+
+                        // Handle time fields based on status
+                        if (in_array($request->status, ['Working', 'Overtime'])) {
+                            $scheduleData['time_in'] = $request->time_in;
+                            $scheduleData['time_out'] = $request->time_out;
+                        } else {
+                            $scheduleData['time_in'] = null;
+                            $scheduleData['time_out'] = null;
+                        }
+
+                        EmployeeSchedule::create($scheduleData);
                         $createdCount++;
                     }
                 }
@@ -351,16 +385,26 @@ class ScheduleV2Controller extends Controller
                         ->first();
 
                     if (!$existingSchedule) {
-                        EmployeeSchedule::create([
+                        // Prepare schedule data
+                        $scheduleData = [
                             'employee_id' => $employeeId,
                             'department_id' => $employee->department_id,
                             'date' => $currentDate->format('Y-m-d'),
-                            'time_in' => $request->time_in,
-                            'time_out' => $request->time_out,
                             'status' => $request->status,
                             'notes' => $request->notes,
                             'created_by' => Auth::id(),
-                        ]);
+                        ];
+
+                        // Handle time fields based on status
+                        if (in_array($request->status, ['Working', 'Overtime'])) {
+                            $scheduleData['time_in'] = $request->time_in;
+                            $scheduleData['time_out'] = $request->time_out;
+                        } else {
+                            $scheduleData['time_in'] = null;
+                            $scheduleData['time_out'] = null;
+                        }
+
+                        EmployeeSchedule::create($scheduleData);
                         $createdCount++;
                     }
                     
