@@ -222,7 +222,9 @@ class PeriodManagementController extends Controller
                 $morningOvertime = $this->calculateMorningOvertime($attendanceRecord, $schedule);
                 $eveningOvertime = $this->calculateEveningOvertime($attendanceRecord, $schedule);
                 $overtime = $this->calculateOvertime($attendanceRecord, $schedule);
+                $nightDifferentialHours = $attendanceRecord ? $attendanceRecord->calculateNightShiftHours() : 0;
                 $lateMinutes = $this->calculateLateMinutes($attendanceRecord, $schedule);
+                $isNightShift = $attendanceRecord ? $attendanceRecord->isNightShift() : false;
                 
                 // Format times
                 $scheduleInOut = $this->formatScheduleTime($schedule);
@@ -249,7 +251,9 @@ class PeriodManagementController extends Controller
                     'morning_overtime' => $morningOvertime,
                     'evening_overtime' => $eveningOvertime,
                     'overtime' => $overtime,
+                    'night_differential_hours' => $nightDifferentialHours,
                     'late_minutes' => $lateMinutes,
+                    'is_night_shift' => $isNightShift,
                     'schedule_status' => $scheduleStatus,
                     'attendance_status' => $attendanceStatus,
                     'combined_status' => $combinedStatus,
@@ -277,8 +281,10 @@ class PeriodManagementController extends Controller
             case 'Day Off':
             case 'Rest Day':
                 return 'Day Off';
-            case 'Holiday':
-                return 'Holiday';
+            case 'Regular Holiday':
+                return 'Regular Holiday';
+            case 'Special Holiday':
+                return 'Special Holiday';
             case 'Leave':
                 return 'Leave';
             default:
@@ -595,7 +601,7 @@ class PeriodManagementController extends Controller
         $scheduleStatus = $this->getScheduleStatus($schedule);
         
         // SPECIAL CASE: For holidays, if employee worked (has attendance), use default schedule
-        if ($scheduleStatus === 'Holiday' && $attendanceRecord && 
+        if (($scheduleStatus === 'Regular Holiday' || $scheduleStatus === 'Special Holiday') && $attendanceRecord && 
             $attendanceRecord->time_in && $attendanceRecord->time_out) {
             return [
                 'time_in' => '09:00:00',
@@ -604,7 +610,7 @@ class PeriodManagementController extends Controller
         }
         
         // If schedule status is Holiday, Leave, or Day Off, don't apply any schedule
-        if ($scheduleStatus === 'Holiday' || $scheduleStatus === 'Leave' || $scheduleStatus === 'Day Off') {
+        if ($scheduleStatus === 'Regular Holiday' || $scheduleStatus === 'Special Holiday' || $scheduleStatus === 'Leave' || $scheduleStatus === 'Day Off') {
             return null;
         }
         
@@ -631,7 +637,7 @@ class PeriodManagementController extends Controller
         $scheduleStatus = $this->getScheduleStatus($schedule);
         
         // For holidays, show default schedule with holiday indicator
-        if ($scheduleStatus === 'Holiday') {
+        if ($scheduleStatus === 'Regular Holiday' || $scheduleStatus === 'Special Holiday') {
             return '09:00–18:00'; // Default schedule for holidays
         }
         
@@ -671,7 +677,7 @@ class PeriodManagementController extends Controller
         $scheduleStatus = $this->getScheduleStatus($schedule);
         
         // For holidays, show default working hours
-        if ($scheduleStatus === 'Holiday') {
+        if ($scheduleStatus === 'Regular Holiday' || $scheduleStatus === 'Special Holiday') {
             return '8 hrs'; // Default working hours for holidays
         }
         
@@ -842,7 +848,7 @@ class PeriodManagementController extends Controller
     private function parseFormattedHours($formattedHours)
     {
         // Handle special cases
-        if ($formattedHours === '—' || $formattedHours === 'Holiday' || $formattedHours === 'Leave' || $formattedHours === 'Day Off') {
+        if ($formattedHours === '—' || $formattedHours === 'Regular Holiday' || $formattedHours === 'Special Holiday' || $formattedHours === 'Leave' || $formattedHours === 'Day Off') {
             return 0;
         }
         
@@ -887,10 +893,14 @@ class PeriodManagementController extends Controller
             'total_morning_overtime_hours' => collect($comprehensiveData)->sum('morning_overtime'),
             'total_evening_overtime_hours' => collect($comprehensiveData)->sum('evening_overtime'),
             'total_overtime_hours' => collect($comprehensiveData)->sum('overtime'),
+            'total_night_differential_hours' => collect($comprehensiveData)->sum('night_differential_hours'),
             'total_late_minutes' => collect($comprehensiveData)->sum('late_minutes'),
             'late_instances' => collect($comprehensiveData)->where('late_minutes', '>', 0)->count(),
+            'night_shift_instances' => collect($comprehensiveData)->where('is_night_shift', true)->count(),
             'working_days' => collect($comprehensiveData)->where('schedule_status', 'Working')->count(),
-            'holiday_days' => collect($comprehensiveData)->where('schedule_status', 'Holiday')->count(),
+            'regular_holiday_days' => collect($comprehensiveData)->where('schedule_status', 'Regular Holiday')->count(),
+            'special_holiday_days' => collect($comprehensiveData)->where('schedule_status', 'Special Holiday')->count(),
+            'holiday_days' => collect($comprehensiveData)->whereIn('schedule_status', ['Regular Holiday', 'Special Holiday'])->count(),
             'rest_days' => collect($comprehensiveData)->where('schedule_status', 'Day Off')->count(),
         ];
         
