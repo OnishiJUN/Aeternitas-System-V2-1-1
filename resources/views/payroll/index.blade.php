@@ -123,6 +123,49 @@
         </div>
     </div>
 
+    <!-- Employee Rate Information -->
+    @if($employees->count() > 0)
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">
+            <i class="fas fa-calculator mr-2 text-blue-600"></i>
+            Employee Daily & Hourly Rates
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            @foreach($employees->take(6) as $employee)
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="font-medium text-gray-900">{{ $employee->full_name }}</h4>
+                    <span class="text-xs text-gray-500">{{ $employee->employee_id }}</span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Monthly Salary:</span>
+                        <span class="font-medium">₱{{ number_format($employee->salary, 2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Daily Rate:</span>
+                        <span class="font-medium text-blue-600">₱{{ number_format($employee->daily_rate, 2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Hourly Rate:</span>
+                        <span class="font-medium text-green-600">₱{{ number_format($employee->hourly_rate, 2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Overtime Rate:</span>
+                        <span class="font-medium text-orange-600">₱{{ number_format($employee->overtime_rate, 2) }}</span>
+                    </div>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @if($employees->count() > 6)
+        <div class="mt-4 text-center">
+            <p class="text-sm text-gray-600">Showing first 6 employees. Total: {{ $employees->count() }} employees</p>
+        </div>
+        @endif
+    </div>
+    @endif
+
     <!-- Payroll Status Overview -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex items-center justify-between mb-4">

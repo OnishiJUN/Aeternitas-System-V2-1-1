@@ -108,6 +108,46 @@ class Employee extends Model
     }
 
     /**
+     * Get daily rate based on monthly salary
+     * Standard calculation: Monthly Salary / 26 working days
+     */
+    public function getDailyRateAttribute(): float
+    {
+        return round($this->salary / 26, 2);
+    }
+
+    /**
+     * Get hourly rate based on daily rate
+     * Standard calculation: Daily Rate / 8 hours
+     */
+    public function getHourlyRateAttribute(): float
+    {
+        return round($this->daily_rate / 8, 2);
+    }
+
+    /**
+     * Get overtime rate (usually 1.25x or 1.5x hourly rate)
+     */
+    public function getOvertimeRateAttribute(): float
+    {
+        return round($this->hourly_rate * 1.25, 2); // 25% premium
+    }
+
+    public function getSpecialOvetimeAttribute(): float{
+        return round($this->hourly_rate * 1.3, 2); // 30% premium
+    }
+
+    /**
+     * Get night differential rate (usually 10% premium for work between 10 PM to 6 AM)
+     */
+    public function getNightDifferentialRateAttribute(): float
+    {
+        return round($this->hourly_rate * 1.1, 2); // 10% premium for night work
+    }
+
+    
+    
+    /**
      * Get current work schedule for a specific date
      */
     public function getWorkScheduleForDate($date)

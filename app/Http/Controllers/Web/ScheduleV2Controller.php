@@ -299,8 +299,64 @@ class ScheduleV2Controller extends Controller
      */
     public function bulkCreate(Request $request)
     {
+        // Handle employee-specific schedules (from per-employee date selection)
+        if ($request->has('employee_schedules')) {
+            $request->validate([
+                'employee_schedules' => 'required|array|min:1',
+                'employee_schedules.*.employee_id' => 'required|exists:employees,id',
+                'employee_schedules.*.dates' => 'required|array|min:1',
+                'employee_schedules.*.dates.*' => 'date',
+                'time_in' => 'sometimes|nullable|date_format:H:i',
+                'time_out' => 'sometimes|nullable|date_format:H:i',
+                'status' => 'required|in:Working,Day Off,Leave,Holiday,Overtime',
+                'notes' => 'nullable|string|max:500'
+            ]);
+
+            $createdCount = 0;
+
+            foreach ($request->employee_schedules as $employeeSchedule) {
+                $employee = Employee::find($employeeSchedule['employee_id']);
+                
+                foreach ($employeeSchedule['dates'] as $date) {
+                    // Check if schedule already exists
+                    $existingSchedule = EmployeeSchedule::where('employee_id', $employeeSchedule['employee_id'])
+                        ->where('date', $date)
+                        ->first();
+
+                    if (!$existingSchedule) {
+                        // Prepare schedule data
+                        $scheduleData = [
+                            'employee_id' => $employeeSchedule['employee_id'],
+                            'department_id' => $employee->department_id,
+                            'date' => $date,
+                            'status' => $request->status,
+                            'notes' => $request->notes,
+                            'created_by' => Auth::id(),
+                        ];
+
+                        // Handle time fields based on status
+                        if (in_array($request->status, ['Working', 'Overtime'])) {
+                            $scheduleData['time_in'] = $request->time_in;
+                            $scheduleData['time_out'] = $request->time_out;
+                        } else {
+                            $scheduleData['time_in'] = null;
+                            $scheduleData['time_out'] = null;
+                        }
+
+                        EmployeeSchedule::create($scheduleData);
+                        $createdCount++;
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully created {$createdCount} schedule(s).",
+                'created_count' => $createdCount
+            ]);
+        }
         // Handle both date range and specific dates
-        if ($request->has('dates')) {
+        elseif ($request->has('dates')) {
             // Handle specific dates (from date select mode)
             $request->validate([
                 'employee_ids' => 'required|array|min:1',
@@ -430,13 +486,17 @@ class ScheduleV2Controller extends Controller
         $deletedCount = EmployeeSchedule::whereIn('id', $request->schedule_ids)->delete();
 
         if ($deletedCount > 0) {
-            $message = "Successfully deleted {$deletedCount} schedule(s)";
-            return redirect()->route('schedule-v2.index')
-                ->with('success', $message);
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully deleted {$deletedCount} schedule(s).",
+                'deleted_count' => $deletedCount
+            ]);
         }
 
-        return redirect()->route('schedule-v2.index')
-            ->with('error', 'No schedules were deleted.');
+        return response()->json([
+            'success' => false,
+            'message' => 'No schedules were deleted.'
+        ]);
     }
 
     /**
