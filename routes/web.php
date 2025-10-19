@@ -101,6 +101,9 @@ Route::middleware('auth')->group(function () {
             // Attendance record management routes
         Route::get('/create-record', [App\Http\Controllers\Web\AttendanceController::class, 'createRecord'])->name('create-record');
         Route::post('/store-record', [App\Http\Controllers\Web\AttendanceController::class, 'storeRecord'])->name('store-record');
+        Route::get('/edit-record/{id}', [App\Http\Controllers\Web\AttendanceController::class, 'editRecord'])->name('edit-record');
+        Route::put('/update-record/{id}', [App\Http\Controllers\Web\AttendanceController::class, 'updateRecord'])->name('update-record');
+        Route::delete('/delete-record/{id}', [App\Http\Controllers\Web\AttendanceController::class, 'deleteRecord'])->name('delete-record');
         
         // Attendance Schedule Reports routes (separate from main schedule management)
         Route::prefix('schedule')->name('attendance.schedule.')->group(function () {

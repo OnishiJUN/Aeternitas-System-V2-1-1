@@ -548,6 +548,147 @@ public function schedule(Request $request)
     }
 
     /**
+     * Show the form for editing an attendance record
+     */
+    public function editRecord($id)
+    {
+        $attendanceRecord = AttendanceRecord::with(['employee.department'])->findOrFail($id);
+        $employees = Employee::with('department')->get();
+        $user = Auth::user();
+        
+        return view('attendance.edit-record', compact('attendanceRecord', 'employees', 'user'));
+    }
+
+    /**
+     * Update the specified attendance record
+     */
+    public function updateRecord(Request $request, $id)
+    {
+        $attendanceRecord = AttendanceRecord::findOrFail($id);
+        
+        $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'date' => 'required|date',
+            'time_in' => 'required|date_format:H:i',
+            'time_out' => 'nullable|date_format:H:i|after:time_in',
+            'break_start' => 'nullable|date_format:H:i',
+            'break_end' => 'nullable|date_format:H:i|after:break_start',
+            'status' => 'required|in:present,absent,late,half_day',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
+        // Check if record already exists for this employee and date (excluding current record)
+        $existingRecord = AttendanceRecord::where('employee_id', $request->employee_id)
+            ->where('date', $request->date)
+            ->where('id', '!=', $id)
+            ->first();
+
+        if ($existingRecord) {
+            return redirect()->back()->with('error', 'An attendance record already exists for this employee on this date.');
+        }
+
+        // Calculate total hours if time_out is provided
+        $totalHours = 0;
+        $breakDuration = 0;
+        $regularHours = 0;
+        $overtimeHours = 0;
+        
+        if ($request->time_out) {
+            $timeIn = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' ' . $request->time_in);
+            $timeOut = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' ' . $request->time_out);
+            
+            // Calculate break duration if break_start and break_end are provided
+            if ($request->break_start && $request->break_end) {
+                $breakStart = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' ' . $request->break_start);
+                $breakEnd = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' ' . $request->break_end);
+                $breakMinutes = $breakEnd->diffInMinutes($breakStart);
+                $breakDuration = $breakMinutes / 60;
+            } else {
+                $breakDuration = 0; // No break entered
+            }
+            
+            // Business Rules:
+            // Standard work day: 8 AM to 5 PM (9 hours total)
+            // Break time: 1 hour (lunch break)
+            // Regular hours: 8 hours (9 hours - 1 hour break)
+            // Overtime starts: After 5:30 PM (8 AM + 8 regular hours + 1 hour break = 5 PM, so overtime starts at 5:30 PM)
+            
+            // Calculate total working time (excluding break)
+            $totalMinutes = $timeIn->diffInMinutes($timeOut);
+            $totalHours = $totalMinutes / 60;
+            $totalHours = $totalHours - $breakDuration; // Subtract break time
+            
+            // Define standard work schedule
+            $standardStart = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' 08:00');
+            $standardEnd = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' 17:00');
+            $overtimeStart = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $request->date . ' 17:30');
+            
+            // Calculate regular and overtime hours based on business rules
+            if ($timeOut <= $standardEnd) {
+                // Worked within standard hours (8 AM - 5 PM)
+                $regularHours = $totalHours;
+                $overtimeHours = 0;
+            } elseif ($timeOut <= $overtimeStart) {
+                // Worked until 5:30 PM (no overtime yet)
+                $regularHours = $totalHours;
+                $overtimeHours = 0;
+            } else {
+                // Worked beyond 5:30 PM (overtime applies)
+                // Calculate regular hours: from time in to 5:30 PM, minus break time
+                $regularMinutes = $timeIn->diffInMinutes($overtimeStart);
+                $regularHours = ($regularMinutes / 60) - $breakDuration;
+                
+                // Calculate overtime hours: from 5:30 PM to time out
+                $overtimeMinutes = $overtimeStart->diffInMinutes($timeOut);
+                $overtimeHours = $overtimeMinutes / 60;
+                
+                // Ensure regular hours don't exceed 8 hours
+                $regularHours = min($regularHours, 8);
+            }
+            
+            // Ensure non-negative values
+            $totalHours = max(0, $totalHours);
+            $regularHours = max(0, $regularHours);
+            $overtimeHours = max(0, $overtimeHours);
+        }
+
+        // Update the attendance record
+        $attendanceRecord->update([
+            'employee_id' => $request->employee_id,
+            'date' => $request->date,
+            'time_in' => $request->date . ' ' . $request->time_in,
+            'time_out' => $request->time_out ? $request->date . ' ' . $request->time_out : null,
+            'break_start' => $request->break_start ? $request->date . ' ' . $request->break_start : null,
+            'break_end' => $request->break_end ? $request->date . ' ' . $request->break_end : null,
+            'total_hours' => $totalHours,
+            'regular_hours' => $regularHours,
+            'overtime_hours' => $overtimeHours,
+            'status' => $request->status,
+            'notes' => $request->notes,
+        ]);
+
+        // Log the attendance action
+        $this->logAttendanceAction($attendanceRecord, 'manual_update', 'Attendance record manually updated');
+
+        return redirect()->route('attendance.timekeeping')->with('success', 'Attendance record updated successfully.');
+    }
+
+    /**
+     * Delete the specified attendance record
+     */
+    public function deleteRecord($id)
+    {
+        $attendanceRecord = AttendanceRecord::findOrFail($id);
+        
+        // Log the attendance action before deletion
+        $this->logAttendanceAction($attendanceRecord, 'manual_delete', 'Attendance record manually deleted');
+        
+        $attendanceRecord->delete();
+
+        return redirect()->route('attendance.timekeeping')->with('success', 'Attendance record deleted successfully.');
+    }
+
+    /**
      * Log attendance action for audit trail
      */
     private function logAttendanceAction($attendanceRecord, $action, $description = null)
