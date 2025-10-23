@@ -41,6 +41,12 @@ Route::middleware('auth')->group(function () {
     Route::resource('departments', DepartmentController::class);
     Route::get('/departments/{department}/employees', [DepartmentController::class, 'employees'])->name('departments.employees');
     
+    // Position routes
+    Route::resource('positions', App\Http\Controllers\PositionController::class);
+    
+    
+
+    
     // Schedule Management V2 routes
     Route::prefix('schedule-v2')->name('schedule-v2.')->group(function () {
         Route::get('/', [App\Http\Controllers\Web\ScheduleV2Controller::class, 'index'])->name('index');

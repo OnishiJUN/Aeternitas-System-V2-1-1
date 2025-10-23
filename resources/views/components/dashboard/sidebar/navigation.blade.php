@@ -23,6 +23,13 @@
             <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ \App\Models\Department::count() }}</span>
         </a>
         
+        <!-- Positions -->
+        <a href="{{ route('positions.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'positions.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-briefcase mr-3 text-lg {{ $activeRoute === 'positions.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+            <span>Positions</span>
+            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ \App\Models\Position::count() }}</span>
+        </a>
+        
         <!-- Companies -->
         <a href="{{ route('companies.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'companies.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
             <i class="fas fa-industry mr-3 text-lg {{ $activeRoute === 'companies.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
