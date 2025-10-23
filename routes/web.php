@@ -180,4 +180,9 @@ Route::middleware('auth')->group(function () {
             })->name('settings');
         });
     });
+    
+    // Tax Bracket Management routes (outside attendance prefix)
+    Route::resource('tax-brackets', App\Http\Controllers\Web\TaxBracketController::class);
+    Route::post('/tax-brackets/calculate', [App\Http\Controllers\Web\TaxBracketController::class, 'calculateTax'])->name('tax-brackets.calculate');
+    Route::post('/tax-brackets/philippine', [App\Http\Controllers\Web\TaxBracketController::class, 'createPhilippineBrackets'])->name('tax-brackets.philippine');
 });

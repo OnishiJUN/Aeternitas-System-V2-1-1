@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\PayrollController;
 use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\TaxBracketController;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,4 +41,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/payrolls/{payroll}/process', [PayrollController::class, 'process']);
     Route::get('/payrolls/reports/summary', [PayrollController::class, 'summary']);
     Route::get('/payrolls/reports/monthly', [PayrollController::class, 'monthlyReport']);
+    
+    // Tax bracket routes
+    Route::get('/tax-brackets', [TaxBracketController::class, 'index']);
+    Route::post('/tax-brackets/calculate', [TaxBracketController::class, 'calculateTax']);
+    Route::post('/tax-brackets/calculate-range', [TaxBracketController::class, 'calculateRange']);
+    Route::get('/tax-brackets/active', [TaxBracketController::class, 'getActiveBrackets']);
+    Route::post('/tax-brackets/philippine', [TaxBracketController::class, 'createPhilippineBrackets']);
 });
