@@ -90,256 +90,6 @@ class PayrollGenerationService
     }
 
     /**
-     * Generate payroll for a specific period (legacy method)
-     *
-     * @param array $periodData Period data from session
-     * @param array|null $employeeIds Optional array of employee IDs to process
-     * @return array Generated payroll records
-     */
-    public function generatePayrollForPeriod(array $periodData, ?array $employeeIds = null): array
-    {
-        try {
-            DB::beginTransaction();
-
-            $startDate = Carbon::parse($periodData['start_date']);
-            $endDate = Carbon::parse($periodData['end_date']);
-            
-            // Get employees to process
-            $employees = Employee::with('department');
-            
-            if (!empty($employeeIds)) {
-                $employees = $employees->whereIn('id', $employeeIds);
-            }
-            
-            // Apply department filter if specified
-            if (!empty($periodData['department_id'])) {
-                $employees = $employees->where('department_id', $periodData['department_id']);
-            }
-            
-            $employees = $employees->get();
-            
-            $generatedPayrolls = [];
-            
-            foreach ($employees as $employee) {
-                $payroll = $this->generateEmployeePayroll($employee, $startDate, $endDate);
-                if ($payroll) {
-                    $generatedPayrolls[] = $payroll;
-                }
-            }
-            
-            DB::commit();
-            
-            return $generatedPayrolls;
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Payroll generation failed: ' . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    /**
-     * Generate payroll for a specific employee and period
-     *
-     * @param Employee $employee
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @return Payroll|null
-     */
-    public function generateEmployeePayroll(Employee $employee, Carbon $startDate, Carbon $endDate): ?Payroll
-    {
-        // Check if payroll already exists for this period
-        $existingPayroll = Payroll::where('employee_id', $employee->id)
-            ->where('pay_period_start', $startDate->format('Y-m-d'))
-            ->where('pay_period_end', $endDate->format('Y-m-d'))
-            ->first();
-            
-        if ($existingPayroll) {
-            Log::info("Payroll already exists for employee {$employee->employee_id} for period {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
-            return null;
-        }
-
-        // Calculate attendance data
-        $attendanceData = $this->calculateAttendanceData($employee, $startDate, $endDate);
-        
-        // Calculate payroll components using daily rate
-        $basicSalary = $this->calculateBasicSalary($employee, $attendanceData);
-        $overtimeData = $this->calculateOvertime($employee, $startDate, $endDate);
-        $bonuses = $this->calculateBonuses($employee, $attendanceData);
-        $deductions = $this->calculateDeductions($employee, $attendanceData);
-        
-        $grossPay = $basicSalary + $overtimeData['overtime_pay'] + $bonuses;
-        $taxAmount = $this->calculateTax($grossPay);
-        $netPay = $grossPay - $deductions - $taxAmount;
-
-        // Create payroll record
-        $payroll = Payroll::create([
-            'employee_id' => $employee->id,
-            'pay_period_start' => $startDate->format('Y-m-d'),
-            'pay_period_end' => $endDate->format('Y-m-d'),
-            'basic_salary' => $basicSalary,
-            'overtime_hours' => $overtimeData['overtime_hours'],
-            'overtime_rate' => $overtimeData['overtime_rate'],
-            'scheduled_hours' => $attendanceData['total_hours'],
-            'bonuses' => $bonuses,
-            'deductions' => $deductions,
-            'tax_amount' => $taxAmount,
-            'gross_pay' => $grossPay,
-            'net_pay' => $netPay,
-            'status' => 'pending',
-        ]);
-
-        Log::info("Generated payroll for employee {$employee->employee_id}: Basic: {$basicSalary}, Overtime: {$overtimeData['overtime_pay']}, Net: {$netPay}");
-        
-        return $payroll;
-    }
-
-    /**
-     * Calculate attendance data for an employee in a period
-     *
-     * @param Employee $employee
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @return array
-     */
-    private function calculateAttendanceData(Employee $employee, Carbon $startDate, Carbon $endDate): array
-    {
-        $attendanceRecords = AttendanceRecord::where('employee_id', $employee->id)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->get();
-
-        $workingDays = 0;
-        $totalHours = 0;
-        $overtimeHours = 0;
-
-        foreach ($attendanceRecords as $record) {
-            if ($record->status === 'present' || $record->status === 'late') {
-                $workingDays++;
-                $totalHours += $record->total_hours ?? 0;
-                
-                // Calculate overtime (hours beyond 8 per day)
-                if (($record->total_hours ?? 0) > 8) {
-                    $overtimeHours += ($record->total_hours - 8);
-                }
-            }
-        }
-
-        return [
-            'working_days' => $workingDays,
-            'total_hours' => $totalHours,
-            'overtime_hours' => $overtimeHours,
-            'attendance_records' => $attendanceRecords
-        ];
-    }
-
-    /**
-     * Calculate basic salary using daily rate and total hours worked
-     *
-     * @param Employee $employee
-     * @param array $attendanceData
-     * @return float
-     */
-    private function calculateBasicSalary(Employee $employee, array $attendanceData): float
-    {
-        $dailyRate = $employee->daily_rate;
-        $totalHours = $attendanceData['total_hours'];
-        
-        // Formula: Basic Salary = Daily Rate × (Total Hours / 8)
-        $basicSalary = $dailyRate * ($totalHours / 8);
-        
-        return round($basicSalary, 2);
-    }
-
-    /**
-     * Calculate overtime pay
-     *
-     * @param Employee $employee
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @return array
-     */
-    private function calculateOvertime(Employee $employee, Carbon $startDate, Carbon $endDate): array
-    {
-        $attendanceData = $this->calculateAttendanceData($employee, $startDate, $endDate);
-        $overtimeHours = $attendanceData['overtime_hours'];
-        $overtimeRate = $employee->overtime_rate;
-        $overtimePay = $overtimeHours * $overtimeRate;
-
-        return [
-            'overtime_hours' => $overtimeHours,
-            'overtime_rate' => $overtimeRate,
-            'overtime_pay' => round($overtimePay, 2)
-        ];
-    }
-
-    /**
-     * Calculate bonuses (performance, attendance, etc.)
-     *
-     * @param Employee $employee
-     * @param array $attendanceData
-     * @return float
-     */
-    private function calculateBonuses(Employee $employee, array $attendanceData): float
-    {
-        $bonuses = 0;
-        
-        // Perfect attendance bonus (example)
-        $totalDays = $attendanceData['attendance_records']->count();
-        $workingDays = $attendanceData['working_days'];
-        
-        if ($totalDays > 0 && $workingDays == $totalDays) {
-            $bonuses += 500; // Perfect attendance bonus
-        }
-        
-        return $bonuses;
-    }
-
-    /**
-     * Calculate deductions (late, error, etc.)
-     *
-     * @param Employee $employee
-     * @param array $attendanceData
-     * @return float
-     */
-    private function calculateDeductions(Employee $employee, array $attendanceData): float
-    {
-        $deductions = 0;
-        
-        // Late deductions - based on basic salary per minute
-        $totalLateMinutes = $attendanceData['attendance_records']->sum('late_minutes');
-        if ($totalLateMinutes > 0) {
-            // Calculate rate per minute: Daily rate / (8 hours * 60 minutes)
-            $minutesPerDay = 8 * 60; // 480 minutes per day
-            $ratePerMinute = $employee->daily_rate / $minutesPerDay;
-            $deductions += $totalLateMinutes * $ratePerMinute;
-        }
-        
-        // Error deductions (incomplete time records)
-        $errorCount = $attendanceData['attendance_records']->where('status', 'error')->count();
-        $deductions += $errorCount * $employee->daily_rate; // Full day deduction for error
-        
-        return $deductions;
-    }
-
-    /**
-     * Calculate tax amount
-     *
-     * @param float $grossPay
-     * @return float
-     */
-    private function calculateTax(float $grossPay): float
-    {
-        // Simple tax calculation (you can implement more complex tax brackets)
-        if ($grossPay <= 25000) {
-            return 0; // No tax for income below ₱25,000
-        } elseif ($grossPay <= 50000) {
-            return ($grossPay - 25000) * 0.15; // 15% for ₱25,001 - ₱50,000
-        } else {
-            return 3750 + (($grossPay - 50000) * 0.25); // 25% for above ₱50,000
-        }
-    }
-
-    /**
      * Calculate payroll preview from comprehensive records (without saving to database)
      *
      * @param Employee $employee
@@ -366,6 +116,9 @@ class PayrollGenerationService
         $taxAmount = $this->calculateTax($grossPay);
         $netPay = $grossPay - $deductions - $taxAmount;
 
+        // Calculate late minutes details for preview
+        $lateMinutesDetails = $this->calculateLateMinutesDetails($employee, $employeeRecords);
+        
         // Return preview data array (not saved to database)
         return [
             'employee_id' => $employee->id,
@@ -380,8 +133,12 @@ class PayrollGenerationService
             'special_holiday_days' => $holidayData['special_holiday_days'],
             'overtime_hours' => $overtimeData['overtime_hours'],
             'overtime_rate' => $overtimeData['overtime_rate'],
+            'night_differential_hours' => $nightDifferentialData['night_differential_hours'],
+            'night_differential_rate' => $nightDifferentialData['night_differential_rate'],
+            'night_differential_pay' => $nightDifferentialData['night_differential_pay'],
             'bonuses' => $bonuses,
             'deductions' => $deductions,
+            'deductions_details' => $lateMinutesDetails,
             'tax_amount' => $taxAmount,
             'gross_pay' => $grossPay,
             'net_pay' => $netPay,
@@ -534,41 +291,63 @@ class PayrollGenerationService
 
     /**
      * Calculate night differential from comprehensive records
+     * Formula: hourly rate × 0.1 × night hours
      */
     private function calculateNightDifferentialFromRecords(Employee $employee, $employeeRecords): array
     {
         $nightShiftHours = $employeeRecords->sum('night_differential_hours');
-        $nightDifferentialPay = $nightShiftHours * $employee->night_differential_rate;
+        $hourlyRate = $employee->daily_rate / 8; // Daily rate / 8 hours
+        $nightDifferentialRate = $hourlyRate * 0.1; // 10% of hourly rate
+        $nightDifferentialPay = $nightShiftHours * $nightDifferentialRate;
 
         return [
             'night_differential_hours' => $nightShiftHours,
-            'night_differential_rate' => $employee->night_differential_rate,
+            'night_differential_rate' => round($nightDifferentialRate, 2),
             'night_differential_pay' => round($nightDifferentialPay, 2)
         ];
     }
 
     /**
-     * Calculate holiday pay from comprehensive records
+     * Calculate holiday pay from comprehensive records based on actual hours worked
      */
     private function calculateHolidayPayFromRecords(Employee $employee, $employeeRecords): array
     {
-        $regularHolidayDays = $employeeRecords->where('schedule_status', 'Regular Holiday')->count();
-        $specialHolidayDays = $employeeRecords->where('schedule_status', 'Special Holiday')->count();
+        $regularHolidayDays = 0;
+        $specialHolidayDays = 0;
+        $regularHolidayHours = 0;
+        $specialHolidayHours = 0;
         
-        // Calculate holiday premium based on full days (8 hours per day)
-        // Regular holiday: 100% premium on full days (8 hours per day)
-        $regularHolidayPremium = $regularHolidayDays * $employee->daily_rate; // 100% holiday premium per day
+        // Calculate actual hours worked on holidays
+        foreach ($employeeRecords as $record) {
+            if ($record['schedule_status'] === 'Regular Holiday') {
+                $regularHolidayDays++;
+                $regularHolidayHours += $this->parseFormattedHours($record['scheduled_hours']);
+            } elseif ($record['schedule_status'] === 'Special Holiday') {
+                $specialHolidayDays++;
+                $specialHolidayHours += $this->parseFormattedHours($record['scheduled_hours']);
+            }
+        }
         
-        // Special holiday: 30% premium on full days (8 hours per day)
-        $specialHolidayPremium = $specialHolidayDays * $employee->daily_rate * 0.3; // 30% holiday premium per day
+        // Calculate hourly rate
+        $hourlyRate = $employee->daily_rate / 8; // Daily rate / 8 hours
         
-        // Basic pay for holidays (will be added to basic salary column)
-        $holidayBasicPay = ($regularHolidayDays + $specialHolidayDays) * $employee->daily_rate;
+        // Calculate holiday basic pay based on actual hours worked
+        $regularHolidayBasicPay = $regularHolidayHours * $hourlyRate;
+        $specialHolidayBasicPay = $specialHolidayHours * $hourlyRate;
         
-        // Total holiday pay = basic pay + premium (for display purposes)
+        // Calculate holiday premium based on actual hours worked
+        // Regular holiday: 100% premium on hours worked (double pay)
+        $regularHolidayPremium = $regularHolidayHours * $hourlyRate; // 100% premium = double pay
+        
+        // Special holiday: 30% premium on hours worked
+        $specialHolidayPremium = $specialHolidayHours * $hourlyRate * 0.3; // 30% premium
+        
+        // Total holiday basic pay
+        $holidayBasicPay = $regularHolidayBasicPay + $specialHolidayBasicPay;
+        
+        // Total holiday pay = basic pay + premium
         $totalHolidayPay = $holidayBasicPay + $regularHolidayPremium + $specialHolidayPremium;
         
-
         return [
             'regular_holiday_days' => $regularHolidayDays,
             'special_holiday_days' => $specialHolidayDays,
@@ -627,6 +406,46 @@ class PayrollGenerationService
     }
 
     /**
+     * Calculate late minutes details for preview display
+     */
+    private function calculateLateMinutesDetails(Employee $employee, $employeeRecords): array
+    {
+        $totalLateMinutes = $employeeRecords->sum('late_minutes');
+        $lateDays = $employeeRecords->where('late_minutes', '>', 0);
+        
+        $lateDetails = [];
+        $totalLateDeduction = 0;
+        
+        if ($totalLateMinutes > 0) {
+            // Calculate rate per minute: Daily rate / (8 hours * 60 minutes)
+            $minutesPerDay = 8 * 60; // 480 minutes per day
+            $ratePerMinute = $employee->daily_rate / $minutesPerDay;
+            
+            foreach ($lateDays as $record) {
+                if ($record['late_minutes'] > 0) {
+                    $lateDeduction = $record['late_minutes'] * $ratePerMinute;
+                    $totalLateDeduction += $lateDeduction;
+                    
+                    $lateDetails[] = [
+                        'date' => $record['date_formatted'],
+                        'late_minutes' => $record['late_minutes'],
+                        'deduction_amount' => round($lateDeduction, 2),
+                        'rate_per_minute' => round($ratePerMinute, 4)
+                    ];
+                }
+            }
+        }
+        
+        return [
+            'total_late_minutes' => $totalLateMinutes,
+            'total_late_deduction' => round($totalLateDeduction, 2),
+            'late_days_count' => count($lateDetails),
+            'late_details' => $lateDetails,
+            'rate_per_minute' => $totalLateMinutes > 0 ? round($employee->daily_rate / (8 * 60), 4) : 0
+        ];
+    }
+
+    /**
      * Convert formatted hours string back to decimal hours for calculations
      * 
      * @param string $formattedHours Formatted hours like "8 hrs 30 mins", "8 hrs", "30 mins", "—", "Holiday"
@@ -657,6 +476,18 @@ class PayrollGenerationService
         }
         
         return 0;
+    }
+
+    /**
+     * Calculate tax amount using TaxCalculationService
+     *
+     * @param float $grossPay
+     * @return float
+     */
+    private function calculateTax(float $grossPay): float
+    {
+        $taxService = app(\App\Services\TaxCalculationService::class);
+        return $taxService->calculateTax($grossPay);
     }
 
     /**

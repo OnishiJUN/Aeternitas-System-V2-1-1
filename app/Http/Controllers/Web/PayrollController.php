@@ -243,9 +243,27 @@ public function generateFromPeriodData(Request $request)
                 'employee_ids' => $period->employee_ids,
             ];
 
-            // Generate payroll for the period
-            $generatedPayrolls = $this->payrollService->generatePayrollForPeriod(
+            // Get comprehensive attendance data for the period
+            $startDate = Carbon::parse($period->start_date);
+            $endDate = Carbon::parse($period->end_date);
+            
+            // Get employees for the period
+            $employees = Employee::with('department');
+            if (!empty($period->department_id)) {
+                $employees = $employees->where('department_id', $period->department_id);
+            }
+            if (!empty($period->employee_ids) && is_array($period->employee_ids)) {
+                $employees = $employees->whereIn('id', $period->employee_ids);
+            }
+            $employees = $employees->get();
+            
+            // Get comprehensive attendance data
+            $comprehensiveData = $this->getComprehensiveAttendanceData($startDate, $endDate, $employees);
+            
+            // Generate payroll using comprehensive data
+            $generatedPayrolls = $this->payrollService->generatePayrollFromComprehensiveData(
                 $periodData, 
+                $comprehensiveData,
                 $request->employee_ids
             );
 
@@ -260,6 +278,185 @@ public function generateFromPeriodData(Request $request)
             \Log::error('Payroll generation failed: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Failed to generate payroll: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Get comprehensive attendance data for all employees in the period
+     * 
+     * @param Carbon $startDate Start date of the period
+     * @param Carbon $endDate End date of the period
+     * @param Collection $employees Collection of employees to analyze
+     * @return array Comprehensive attendance data array
+     */
+    private function getComprehensiveAttendanceData($startDate, $endDate, $employees)
+    {
+        $comprehensiveData = [];
+        
+        foreach ($employees as $employee) {
+            $currentDate = $startDate->copy();
+            
+            while ($currentDate->lte($endDate)) {
+                $dateStr = $currentDate->format('Y-m-d');
+                
+                // Get attendance record for this date
+                $attendanceRecord = \App\Models\AttendanceRecord::where('employee_id', $employee->id)
+                    ->where('date', $dateStr)
+                    ->first();
+                
+                // Get schedule for this date
+                $schedule = \App\Models\EmployeeSchedule::where('employee_id', $employee->id)
+                    ->where('date', $dateStr)
+                    ->first();
+                
+                // Determine schedule status
+                $scheduleStatus = $this->getScheduleStatus($schedule);
+                
+                // Determine attendance status
+                $attendanceStatus = $this->getAttendanceStatus($attendanceRecord, $schedule);
+                
+                // Initialize default values for non-working days
+                $workedHours = '—';
+                $scheduledHours = '—';
+                $morningOvertime = 0;
+                $eveningOvertime = 0;
+                $overtime = 0;
+                $nightDifferentialHours = 0;
+                $lateMinutes = 0;
+                $isNightShift = false;
+                
+                // Only calculate attendance metrics if schedule status is 'Working' or 'Regular Holiday' or 'Special Holiday'
+                if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
+                    
+                    // Calculate worked hours if attendance record exists
+                    if ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {
+                        $workedHours = $attendanceRecord->total_hours ?? 0;
+                        $scheduledHours = $this->formatHours($workedHours);
+                        
+                        // Calculate overtime
+                        if ($workedHours > 8) {
+                            $overtime = $workedHours - 8;
+                        }
+                        
+                        // Calculate night differential hours
+                        $nightDifferentialHours = $attendanceRecord->calculateNightShiftHours();
+                        $isNightShift = $nightDifferentialHours > 0;
+                        
+                        // Calculate late minutes
+                        if ($attendanceRecord->isLate()) {
+                            $lateMinutes = $attendanceRecord->late_minutes ?? 0;
+                        }
+                    } else {
+                        // No attendance record - mark as absent
+                        $attendanceStatus = 'Absent';
+                        $scheduledHours = '—';
+                    }
+                } else {
+                    // Non-working day
+                    $scheduledHours = $scheduleStatus;
+                }
+                
+                // Add to comprehensive data
+                $comprehensiveData[] = [
+                    'employee_id' => $employee->id,
+                    'employee_name' => $employee->full_name,
+                    'employee_id_number' => $employee->employee_id,
+                    'department' => $employee->department->name ?? 'N/A',
+                    'date' => $dateStr,
+                    'date_formatted' => $currentDate->format('M j, Y'),
+                    'day_of_week' => $currentDate->format('l'),
+                    'schedule_status' => $scheduleStatus,
+                    'attendance_status' => $attendanceStatus,
+                    'scheduled_hours' => $scheduledHours,
+                    'worked_hours' => $workedHours,
+                    'overtime' => $overtime,
+                    'morning_overtime' => $morningOvertime,
+                    'evening_overtime' => $eveningOvertime,
+                    'night_differential_hours' => $nightDifferentialHours,
+                    'late_minutes' => $lateMinutes,
+                    'is_night_shift' => $isNightShift,
+                ];
+                
+                $currentDate->addDay();
+            }
+        }
+        
+        return $comprehensiveData;
+    }
+    
+    /**
+     * Determine schedule status for a given schedule
+     */
+    private function getScheduleStatus($schedule)
+    {
+        if (!$schedule) {
+            return 'Day Off';
+        }
+        
+        // Check if it's a holiday
+        if ($schedule->is_holiday) {
+            return $schedule->holiday_type === 'regular' ? 'Regular Holiday' : 'Special Holiday';
+        }
+        
+        // Check if it's a leave day
+        if ($schedule->is_leave) {
+            return 'Leave';
+        }
+        
+        // Check if it's a working day
+        if ($schedule->is_working_day) {
+            return 'Working';
+        }
+        
+        return 'Day Off';
+    }
+    
+    /**
+     * Determine attendance status based on attendance record and schedule
+     */
+    private function getAttendanceStatus($attendanceRecord, $schedule)
+    {
+        if (!$attendanceRecord) {
+            return 'Absent';
+        }
+        
+        if ($attendanceRecord->time_in && $attendanceRecord->time_out) {
+            $totalHours = $attendanceRecord->total_hours ?? 0;
+            
+            if ($totalHours < 4) {
+                return 'Half Day';
+            }
+            
+            if ($attendanceRecord->isLate()) {
+                return 'Late';
+            }
+            
+            return 'Present';
+        }
+        
+        if ($attendanceRecord->time_in && !$attendanceRecord->time_out) {
+            return 'Present (No Time Out)';
+        }
+        
+        return 'Absent';
+    }
+    
+    /**
+     * Format hours for display
+     */
+    private function formatHours($hours)
+    {
+        if ($hours == 0) {
+            return '—';
+        }
+        
+        $wholeHours = floor($hours);
+        $minutes = round(($hours - $wholeHours) * 60);
+        
+        if ($minutes == 0) {
+            return $wholeHours . ' hrs';
+        }
+        
+        return $wholeHours . ' hrs ' . $minutes . ' mins';
     }
 
     /**
