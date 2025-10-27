@@ -16,9 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'track.session' => \App\Http\Middleware\TrackUserSession::class,
         ]);
         
-        // Add session tracking to web middleware group
+        // Add session tracking and company context to web middleware group
         $middleware->web(append: [
             \App\Http\Middleware\TrackUserSession::class,
+            \App\Http\Middleware\CompanyContextMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\AttendanceSetting;
 use App\Models\AttendanceException;
 use App\Helpers\TimezoneHelper;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -21,13 +22,20 @@ class AttendanceController extends Controller
     {
         $date = $request->get('date', today()->format('Y-m-d'));
         $date = Carbon::parse($date);
+        $currentCompany = CompanyHelper::getCurrentCompany();
         
         // Paginate employees
-        $employees = Employee::with(['department', 'account'])
+        $query = Employee::with(['department', 'account'])
             ->whereHas('account', function($query) {
                 $query->where('is_active', true);
-            })
-            ->orderBy('first_name')
+            });
+            
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+        
+        $employees = $query->orderBy('first_name')
             ->paginate(10); // 10 employees per page
 
         // Get all attendance records for the date (for summary calculation)
@@ -57,7 +65,15 @@ class AttendanceController extends Controller
      */
     public function timekeeping(Request $request)
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
         $query = AttendanceRecord::with(['employee.department', 'employee.account']);
+
+        // Filter by company
+        if ($currentCompany) {
+            $query->whereHas('employee', function($q) use ($currentCompany) {
+                $q->where('company_id', $currentCompany->id);
+            });
+        }
 
         // Apply filters
         if ($request->filled('employee_id')) {
@@ -101,11 +117,27 @@ class AttendanceController extends Controller
             $summaryQuery->where('date', '<=', $request->date_to);
         }
         
+        // Filter summary by company
+        if ($currentCompany) {
+            $summaryQuery->whereHas('employee', function($q) use ($currentCompany) {
+                $q->where('company_id', $currentCompany->id);
+            });
+        }
+        
         $allRecords = $summaryQuery->get();
         $summary = $this->calculateTimekeepingSummary($allRecords);
 
-        $employees = Employee::with('department')->get();
-        $departments = \App\Models\Department::all();
+        $employeesQuery = Employee::with('department');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
+        
+        $departmentsQuery = \App\Models\Department::query();
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
         $user = Auth::user();
 
         return view('attendance.timekeeping', compact('attendanceRecords', 'employees', 'departments', 'summary', 'user'));
@@ -116,7 +148,13 @@ class AttendanceController extends Controller
      */
     public function createRecord()
     {
-        $employees = Employee::with('department')->get();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $employeesQuery = Employee::with('department');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
         $user = Auth::user();
         
         return view('attendance.create-record', compact('employees', 'user'));

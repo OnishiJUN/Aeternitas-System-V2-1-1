@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -120,5 +121,25 @@ class CompanyController extends Controller
 
         return redirect()->route('companies.index')
             ->with('success', 'Company deleted successfully.');
+    }
+
+    /**
+     * Switch the current company context
+     */
+    public function switchCompany(Request $request)
+    {
+        $request->validate([
+            'company_id' => 'required|exists:companies,id'
+        ]);
+
+        $company = Company::find($request->company_id);
+        
+        if (!$company || !$company->is_active) {
+            return back()->with('error', 'Company not found or inactive.');
+        }
+
+        CompanyHelper::setCurrentCompany($company);
+
+        return back()->with('success', 'Switched to ' . $company->name);
     }
 }

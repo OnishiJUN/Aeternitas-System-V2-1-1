@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Position;
 use App\Models\Department;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -14,7 +15,16 @@ class PositionController extends Controller
      */
     public function index()
     {
-        $positions = Position::with('department')->orderBy('name')->paginate(10);
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $query = Position::with('department');
+        
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+        
+        $positions = $query->orderBy('name')->paginate(10);
         $user = auth()->user();
         return view('positions.index', compact('positions', 'user'));
     }
@@ -24,8 +34,16 @@ class PositionController extends Controller
      */
     public function create()
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
         $user = auth()->user();
-        $departments = Department::orderBy('name')->get();
+        $departmentsQuery = Department::query();
+        
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        
+        $departments = $departmentsQuery->orderBy('name')->get();
         return view('positions.create', compact('user', 'departments'));
     }
 
@@ -46,6 +64,12 @@ class PositionController extends Controller
             'requirements' => 'nullable|array',
             'responsibilities' => 'nullable|array'
         ]);
+
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        if ($currentCompany) {
+            $validated['company_id'] = $currentCompany->id;
+        }
 
         $position = Position::create($validated);
 
@@ -68,8 +92,16 @@ class PositionController extends Controller
      */
     public function edit(Position $position)
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
         $user = auth()->user();
-        $departments = Department::orderBy('name')->get();
+        $departmentsQuery = Department::query();
+        
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        
+        $departments = $departmentsQuery->orderBy('name')->get();
         return view('positions.edit', compact('position', 'user', 'departments'));
     }
 

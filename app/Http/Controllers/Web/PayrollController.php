@@ -7,6 +7,7 @@ use App\Models\Payroll;
 use App\Models\Employee;
 use App\Models\Department;
 use App\Services\PayrollGenerationService;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -21,7 +22,16 @@ class PayrollController extends Controller
     }
     public function index(Request $request)
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
         $query = Payroll::with('employee.department');
+        
+        // Filter by company
+        if ($currentCompany) {
+            $query->whereHas('employee', function($q) use ($currentCompany) {
+                $q->where('company_id', $currentCompany->id);
+            });
+        }
 
         if ($request->has('employee_id')) {
             $query->where('employee_id', $request->employee_id);
@@ -40,12 +50,17 @@ class PayrollController extends Controller
         }
 
         $payrolls = $query->orderBy('pay_period_start', 'desc')->paginate(15);
-        $employees = Employee::all();
+        
+        $employeesQuery = Employee::query();
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
 
         // Calculate summary statistics
         $allPayrolls = $query->get();
         $summary = [
-            'total_employees' => Employee::count(),
+            'total_employees' => $employeesQuery->count(),
             'gross_pay' => $allPayrolls->sum('gross_pay'),
             'total_deductions' => $allPayrolls->sum('deductions'),
             'net_pay' => $allPayrolls->sum('net_pay'),
@@ -59,7 +74,14 @@ class PayrollController extends Controller
 
     public function create()
     {
-        $employees = Employee::all();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $employeesQuery = Employee::query();
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
+        
         return view('payrolls.create', compact('employees'));
     }
 
@@ -91,7 +113,14 @@ class PayrollController extends Controller
 
     public function edit(Payroll $payroll)
     {
-        $employees = Employee::all();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $employeesQuery = Employee::query();
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
+        
         return view('payrolls.edit', compact('payroll', 'employees'));
     }
 

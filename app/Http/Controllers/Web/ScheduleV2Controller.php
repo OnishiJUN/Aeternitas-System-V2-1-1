@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmployeeSchedule;
 use App\Models\Employee;
 use App\Models\Department;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -42,16 +43,26 @@ class ScheduleV2Controller extends Controller
      */
     public function index(Request $request)
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
         $selectedDepartment = $request->get('department_id');
         $selectedYear = $request->get('year', now()->year);
         $selectedMonth = $request->get('month', now()->month);
         $searchQuery = $request->get('search');
 
         // Get departments for filter
-        $departments = Department::all();
+        $departmentsQuery = Department::query();
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
 
         // Get employees for selected department with search
-        $employees = Employee::with('department')
+        $employeesQuery = Employee::with('department');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        
+        $employees = $employeesQuery
             ->when($selectedDepartment, function($query) use ($selectedDepartment) {
                 return $query->where('department_id', $selectedDepartment);
             })
@@ -66,7 +77,11 @@ class ScheduleV2Controller extends Controller
             ->get();
 
         // If no department selected, get all employees for the bulk modal
-        $allEmployees = Employee::with('department')->orderBy('first_name')->get();
+        $allEmployeesQuery = Employee::with('department');
+        if ($currentCompany) {
+            $allEmployeesQuery->forCompany($currentCompany->id);
+        }
+        $allEmployees = $allEmployeesQuery->orderBy('first_name')->get();
 
         // Get schedules for the selected month
         $schedules = collect();
@@ -117,13 +132,28 @@ class ScheduleV2Controller extends Controller
         $employeeId = $request->get('employee_id');
         $date = $request->get('date', now()->format('Y-m-d'));
 
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
         $employee = null;
         if ($employeeId) {
-            $employee = Employee::with('department')->find($employeeId);
+            $employeeQuery = Employee::with('department');
+            if ($currentCompany) {
+                $employeeQuery->forCompany($currentCompany->id);
+            }
+            $employee = $employeeQuery->find($employeeId);
         }
 
-        $employees = Employee::with('department')->orderBy('first_name')->get();
-        $departments = \App\Models\Department::orderBy('name')->get();
+        $employeesQuery = Employee::with('department');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->orderBy('first_name')->get();
+        
+        $departmentsQuery = \App\Models\Department::query();
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->orderBy('name')->get();
         $user = Auth::user();
 
         // Get current filter state for back navigation

@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function () {
     
     // Company routes
     Route::resource('companies', App\Http\Controllers\Web\CompanyController::class);
+    Route::post('/companies/switch', [App\Http\Controllers\Web\CompanyController::class, 'switchCompany'])->name('companies.switch');
     
     // HR Profile and Settings routes
     Route::prefix('hr')->name('hr.')->group(function () {

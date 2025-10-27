@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Department;
 use App\Models\Account;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -17,8 +18,16 @@ class EmployeeController extends Controller
      */
     public function index()
     {
-        $employees = Employee::with(['department', 'account'])
-            ->orderBy('created_at', 'desc')
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $query = Employee::with(['department', 'account']);
+        
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+        
+        $employees = $query->orderBy('created_at', 'desc')
             ->paginate(15);
 
         $user = auth()->user();
@@ -31,7 +40,14 @@ class EmployeeController extends Controller
      */
     public function create()
     {
-        $departments = Department::all();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $departments = Department::query();
+        if ($currentCompany) {
+            $departments->forCompany($currentCompany->id);
+        }
+        $departments = $departments->get();
+        
         $user = auth()->user();
         return view('employees.create', compact('departments', 'user'));
     }
@@ -54,8 +70,10 @@ class EmployeeController extends Controller
             'employee_id' => 'nullable|string|max:50|unique:employees,employee_id',
         ]);
 
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
         // Create employee
-        $employee = Employee::create([
+        $employeeData = [
             'employee_id' => $request->employee_id, // Will be auto-generated if null
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
@@ -64,7 +82,13 @@ class EmployeeController extends Controller
             'department_id' => $request->department_id,
             'salary' => $request->salary,
             'hire_date' => $request->hire_date,
-        ]);
+        ];
+        
+        if ($currentCompany) {
+            $employeeData['company_id'] = $currentCompany->id;
+        }
+        
+        $employee = Employee::create($employeeData);
 
         // Create account
         Account::create([
@@ -93,7 +117,14 @@ class EmployeeController extends Controller
      */
     public function edit(Employee $employee)
     {
-        $departments = Department::all();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $departments = Department::query();
+        if ($currentCompany) {
+            $departments->forCompany($currentCompany->id);
+        }
+        $departments = $departments->get();
+        
         $employee->load('account');
         $user = auth()->user();
         return view('employees.edit', compact('employee', 'departments', 'user'));

@@ -25,6 +25,7 @@ class Employee extends Model
         'position',
         'salary',
         'hire_date',
+        'company_id',
     ];
 
     protected $casts = [
@@ -60,6 +61,19 @@ class Employee extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Scope to filter by company
+     */
+    public function scopeForCompany($query, $companyId)
+    {
+        return $query->where('company_id', $companyId);
     }
 
     public function payrolls(): HasMany

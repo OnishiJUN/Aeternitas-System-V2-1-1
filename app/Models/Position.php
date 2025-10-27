@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Position extends Model
 {
@@ -12,6 +13,7 @@ class Position extends Model
         'description',
         'level',
         'department_id',
+        'company_id',
         'min_salary',
         'max_salary',
         'is_active',
@@ -49,6 +51,22 @@ class Position extends Model
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Get the company that owns the position
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Scope to filter by company
+     */
+    public function scopeForCompany($query, $companyId)
+    {
+        return $query->where('company_id', $companyId);
     }
 
     /**

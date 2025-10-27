@@ -1,5 +1,9 @@
 @props(['user', 'activeRoute' => 'dashboard'])
 
+@php
+    $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+@endphp
+
 <nav class="mt-8 px-4 pb-4">
     <div class="space-y-2">
         <!-- Dashboard -->
@@ -10,24 +14,39 @@
         
         @if($user->role === 'admin' || $user->role === 'hr')
         <!-- Employees -->
+        @php
+            $employeeCount = $currentCompany 
+                ? \App\Models\Employee::forCompany($currentCompany->id)->count() 
+                : \App\Models\Employee::count();
+        @endphp
         <a href="{{ route('employees.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'employees.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
             <i class="fas fa-users mr-3 text-lg {{ $activeRoute === 'employees.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Employees</span>
-            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ \App\Models\Employee::count() }}</span>
+            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ $employeeCount }}</span>
         </a>
         
         <!-- Departments -->
+        @php
+            $departmentCount = $currentCompany 
+                ? \App\Models\Department::forCompany($currentCompany->id)->count() 
+                : \App\Models\Department::count();
+        @endphp
         <a href="{{ route('departments.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'departments.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
             <i class="fas fa-building mr-3 text-lg {{ $activeRoute === 'departments.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Departments</span>
-            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ \App\Models\Department::count() }}</span>
+            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ $departmentCount }}</span>
         </a>
         
         <!-- Positions -->
+        @php
+            $positionCount = $currentCompany 
+                ? \App\Models\Position::forCompany($currentCompany->id)->count() 
+                : \App\Models\Position::count();
+        @endphp
         <a href="{{ route('positions.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'positions.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
             <i class="fas fa-briefcase mr-3 text-lg {{ $activeRoute === 'positions.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Positions</span>
-            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ \App\Models\Position::count() }}</span>
+            <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{{ $positionCount }}</span>
         </a>
         
         <!-- Companies -->

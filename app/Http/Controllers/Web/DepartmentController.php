@@ -4,14 +4,23 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 
 class DepartmentController extends Controller
 {
     public function index()
     {
-        $departments = Department::withCount('employees')
-            ->when(request('search'), function ($query) {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $query = Department::withCount('employees');
+        
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+        
+        $departments = $query->when(request('search'), function ($query) {
                 $query->where('name', 'like', '%' . request('search') . '%');
             })
             ->paginate(15);
@@ -34,7 +43,14 @@ class DepartmentController extends Controller
             'budget' => 'nullable|numeric|min:0',
         ]);
 
-        Department::create($request->all());
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $departmentData = $request->all();
+        if ($currentCompany) {
+            $departmentData['company_id'] = $currentCompany->id;
+        }
+        
+        Department::create($departmentData);
 
         return redirect()->route('departments.index')
             ->with('success', 'Department created successfully.');
@@ -77,9 +93,16 @@ class DepartmentController extends Controller
 
     public function employees(Department $department)
     {
-        $employees = $department->employees()
-            ->with('account')
-            ->when(request('search'), function ($query) {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        
+        $query = $department->employees()->with('account');
+        
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+        
+        $employees = $query->when(request('search'), function ($query) {
                 $query->where('first_name', 'like', '%' . request('search') . '%')
                       ->orWhere('last_name', 'like', '%' . request('search') . '%');
             })

@@ -20,13 +20,90 @@
             </div>
         </div>
         <div class="flex items-center space-x-1 sm:space-x-2 lg:space-x-3 flex-shrink-0">
-            <!-- Company Name Display - Hidden on mobile, shown on tablet+ -->
-            <div class="hidden md:block">
-                <div class="flex items-center px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <i class="fas fa-industry text-blue-600 mr-2"></i>
-                    <span class="text-sm font-medium text-blue-800">Eternal Bright Sanctuary Inc.</span>
+            @php
+                $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+                $allCompanies = \App\Models\Company::where('is_active', true)->orderBy('name')->get();
+            @endphp
+            
+            <!-- Company Selector - Hidden on mobile, shown on tablet+ -->
+            <div class="hidden md:block relative" x-data="{ open: false }">
+                <button @click="open = !open" class="flex items-center px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 hover:border-blue-300 rounded-lg transition-all group">
+                    <i class="fas fa-building text-blue-600 mr-2"></i>
+                    <span class="text-sm font-medium text-blue-800 group-hover:text-blue-900">
+                        {{ $currentCompany ? $currentCompany->name : 'No Company' }}
+                    </span>
+                    <span class="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">Active</span>
+                    <i class="fas fa-chevron-down ml-2 text-blue-600 text-xs transition-transform" :class="{ 'rotate-180': open }"></i>
+                </button>
+                
+                <!-- Dropdown Menu -->
+                <div x-show="open" 
+                     @click.away="open = false"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="transform opacity-0 scale-95"
+                     x-transition:enter-end="transform opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     x-transition:leave-start="transform opacity-100 scale-100"
+                     x-transition:leave-end="transform opacity-0 scale-95"
+                     class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-96 overflow-y-auto">
+                    
+                    <!-- Dropdown Header -->
+                    <div class="px-4 py-2 border-b border-gray-100">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Select Company</p>
+                    </div>
+                    
+                    <!-- Company List -->
+                    @foreach($allCompanies as $company)
+                        <form method="POST" action="{{ route('companies.switch') }}" class="block" 
+                              onsubmit="handleCompanySwitch(event, '{{ $company->name }}')">
+                            @csrf
+                            <input type="hidden" name="company_id" value="{{ $company->id }}">
+                            <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-blue-50 cursor-not-allowed' : 'cursor-pointer' }}">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-gray-900">{{ $company->name }}</span>
+                                        @if($currentCompany && $company->id === $currentCompany->id)
+                                            <span class="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">
+                                                <i class="fas fa-check-circle mr-1"></i>Active
+                                            </span>
+                                        @else
+                                            <span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Switch</span>
+                                        @endif
+                                    </div>
+                                    @if($company->code)
+                                        <p class="text-xs text-gray-500 mt-0.5">{{ $company->code }}</p>
+                                    @endif
+                                </div>
+                            </button>
+                        </form>
+                    @endforeach
                 </div>
             </div>
+            
+            <!-- Success/Error Messages -->
+            @if(session('success'))
+                <div class="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50" 
+                     x-data="{ show: true }" 
+                     x-show="show" 
+                     x-init="setTimeout(() => show = false, 3000)">
+                    <div class="flex items-center">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        {{ session('success') }}
+                    </div>
+                </div>
+            @endif
+            
+            @if(session('error'))
+                <div class="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50" 
+                     x-data="{ show: true }" 
+                     x-show="show" 
+                     x-init="setTimeout(() => show = false, 3000)">
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        {{ session('error') }}
+                    </div>
+                </div>
+            @endif
             
             <!-- Notifications -->
             <button class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
@@ -140,5 +217,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update time every second
     setInterval(updateTime, 1000);
+
+    // Company switch handler
+    window.handleCompanySwitch = function(event, companyName) {
+        // Show loading state
+        const submitButton = event.target.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Switching...';
+        }
+        
+        // The form will submit normally and page will reload
+        return true;
+    };
 });
 </script>
