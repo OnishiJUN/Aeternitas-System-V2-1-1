@@ -43,7 +43,7 @@ class LeaveController extends Controller
                     $employee = $user->employee;
                 }
             } catch (\Exception $e) {
-                \Log::warning('Employee relationship failed in leave index', ['error' => $e->getMessage()]);
+                Log::warning('Employee relationship failed in leave index', ['error' => $e->getMessage()]);
             }
             
             // Method 2: Try direct find if employee_id exists
@@ -138,10 +138,10 @@ class LeaveController extends Controller
         try {
             $syncedCount = $this->syncApprovedLeaveBalances($employeeIds);
             if ($syncedCount > 0) {
-                \Log::info('Synced ' . $syncedCount . ' leave balances in index method');
+                Log::info('Synced ' . $syncedCount . ' leave balances in index method');
             }
         } catch (\Exception $e) {
-            \Log::error('Error syncing leave balances in index: ' . $e->getMessage(), [
+            Log::error('Error syncing leave balances in index: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
         }
@@ -344,7 +344,7 @@ class LeaveController extends Controller
                     $this->updateLeaveBalance($leaveRequest, true); // Pass flag to indicate pre-approval update
                 } catch (\Exception $e) {
                     // If balance update fails, we should not approve the leave
-                    \Log::error('Failed to update leave balance for leave request ' . $id . ': ' . $e->getMessage(), [
+                    Log::error('Failed to update leave balance for leave request ' . $id . ': ' . $e->getMessage(), [
                         'leave_request_id' => $id,
                         'employee_id' => $leaveRequest->employee_id,
                         'leave_type' => $leaveRequest->leave_type,
@@ -382,7 +382,7 @@ class LeaveController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error updating leave request status: ' . $e->getMessage(), [
+            Log::error('Error updating leave request status: ' . $e->getMessage(), [
                 'exception' => $e,
                 'leave_request_id' => $id,
                 'user_id' => Auth::id(),
@@ -713,7 +713,7 @@ class LeaveController extends Controller
             // In pre-approval mode, we're updating balance BEFORE status change, so status should be pending
             if ($preApproval) {
                 if ($leaveRequest->status !== 'pending') {
-                    \Log::warning('Leave request status is not pending in pre-approval mode, skipping balance update', [
+                    Log::warning('Leave request status is not pending in pre-approval mode, skipping balance update', [
                         'leave_request_id' => $leaveRequest->id,
                         'status' => $leaveRequest->status
                     ]);
@@ -722,7 +722,7 @@ class LeaveController extends Controller
             } else {
                 // Not in pre-approval mode - status should be approved
                 if ($leaveRequest->status !== 'approved') {
-                    \Log::warning('Leave request is not approved, skipping balance update', [
+                    Log::warning('Leave request is not approved, skipping balance update', [
                         'leave_request_id' => $leaveRequest->id,
                         'status' => $leaveRequest->status
                     ]);
@@ -735,12 +735,12 @@ class LeaveController extends Controller
             }
 
             if (!$leaveRequest->employee) {
-                \Log::warning('Leave request has no employee: ' . $leaveRequest->id);
+                Log::warning('Leave request has no employee: ' . $leaveRequest->id);
                 return;
             }
 
             if (!$leaveRequest->start_date) {
-                \Log::warning('Leave request has no start_date: ' . $leaveRequest->id);
+                Log::warning('Leave request has no start_date: ' . $leaveRequest->id);
                 return;
             }
 
@@ -750,7 +750,7 @@ class LeaveController extends Controller
 
             $leaveBalance = $leaveRequest->employee->getLeaveBalanceForYear($year);
             if (!$leaveBalance) {
-                \Log::warning('Leave balance not found for employee ' . $leaveRequest->employee_id . ' year ' . $year);
+                Log::warning('Leave balance not found for employee ' . $leaveRequest->employee_id . ' year ' . $year);
                 return;
             }
 
@@ -758,7 +758,7 @@ class LeaveController extends Controller
             $totalField = $leaveRequest->leave_type . '_days_total';
             
             if (!isset($leaveBalance->$usedField) || !isset($leaveBalance->$totalField)) {
-                \Log::warning('Invalid leave type field for leave request ' . $leaveRequest->id, [
+                Log::warning('Invalid leave type field for leave request ' . $leaveRequest->id, [
                     'leave_type' => $leaveRequest->leave_type,
                     'used_field' => $usedField,
                     'total_field' => $totalField
@@ -768,7 +768,7 @@ class LeaveController extends Controller
 
             $daysRequested = $leaveRequest->days_requested ?? 0;
             if ($daysRequested <= 0) {
-                \Log::warning('Invalid days_requested: ' . $daysRequested . ' for leave request ' . $leaveRequest->id);
+                Log::warning('Invalid days_requested: ' . $daysRequested . ' for leave request ' . $leaveRequest->id);
                 return;
             }
 
@@ -779,7 +779,7 @@ class LeaveController extends Controller
 
             // Check if there's enough balance (should have been checked during request creation, but double-check)
             if ($currentAvailable < $daysRequested) {
-                \Log::warning('Insufficient leave balance for approval', [
+                Log::warning('Insufficient leave balance for approval', [
                     'leave_request_id' => $leaveRequest->id,
                     'employee_id' => $leaveRequest->employee_id,
                     'leave_type' => $leaveRequest->leave_type,
@@ -797,7 +797,7 @@ class LeaveController extends Controller
             // Refresh to get updated values
             $leaveBalance->refresh();
             
-            \Log::info('Leave balance updated successfully', [
+            Log::info('Leave balance updated successfully', [
                 'leave_request_id' => $leaveRequest->id,
                 'employee_id' => $leaveRequest->employee_id,
                 'employee_name' => $leaveRequest->employee->full_name ?? 'N/A',
@@ -811,7 +811,7 @@ class LeaveController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error updating leave balance: ' . $e->getMessage(), [
+            Log::error('Error updating leave balance: ' . $e->getMessage(), [
                 'leave_request_id' => $leaveRequest->id ?? null,
                 'employee_id' => $leaveRequest->employee_id ?? null,
                 'leave_type' => $leaveRequest->leave_type ?? null,
@@ -830,7 +830,7 @@ class LeaveController extends Controller
     private function syncApprovedLeaveBalances($employeeIds = [])
     {
         try {
-            \Log::info('Starting leave balance sync', [
+            Log::info('Starting leave balance sync', [
                 'employee_ids_count' => count($employeeIds),
                 'year' => now()->year
             ]);
@@ -854,7 +854,7 @@ class LeaveController extends Controller
             // Get all approved leaves
             $approvedLeaves = $query->with('employee')->get();
             
-            \Log::info('Found approved leaves for sync', [
+            Log::info('Found approved leaves for sync', [
                 'count' => $approvedLeaves->count()
             ]);
             
@@ -883,7 +883,7 @@ class LeaveController extends Controller
                 $expectedUsed[$key]['leave_ids'][] = $leave->id;
             }
             
-            \Log::info('Grouped approved leaves', [
+            Log::info('Grouped approved leaves', [
                 'groups_count' => count($expectedUsed)
             ]);
             
@@ -895,13 +895,13 @@ class LeaveController extends Controller
                 try {
                     $employee = Employee::find($data['employee_id']);
                     if (!$employee) {
-                        \Log::warning('Employee not found for sync', ['employee_id' => $data['employee_id']]);
+                        Log::warning('Employee not found for sync', ['employee_id' => $data['employee_id']]);
                         continue;
                     }
                     
                     $leaveBalance = $employee->getLeaveBalanceForYear($data['year']);
                     if (!$leaveBalance) {
-                        \Log::warning('Leave balance not found for sync', [
+                        Log::warning('Leave balance not found for sync', [
                             'employee_id' => $data['employee_id'],
                             'year' => $data['year']
                         ]);
@@ -910,7 +910,7 @@ class LeaveController extends Controller
                     
                     $usedField = $data['leave_type'] . '_days_used';
                     if (!isset($leaveBalance->$usedField)) {
-                        \Log::warning('Invalid leave type field', [
+                        Log::warning('Invalid leave type field', [
                             'leave_type' => $data['leave_type'],
                             'used_field' => $usedField
                         ]);
@@ -920,7 +920,7 @@ class LeaveController extends Controller
                     $currentUsed = $leaveBalance->$usedField ?? 0;
                     $expectedTotal = $data['total_days'];
                     
-                    \Log::info('Checking balance sync', [
+                    Log::info('Checking balance sync', [
                         'employee_id' => $data['employee_id'],
                         'leave_type' => $data['leave_type'],
                         'current_used' => $currentUsed,
@@ -941,7 +941,7 @@ class LeaveController extends Controller
                         $leaveBalance->refresh();
                         $syncedCount++;
                         
-                        \Log::info('Synced leave balance successfully', [
+                        Log::info('Synced leave balance successfully', [
                             'employee_id' => $data['employee_id'],
                             'employee_name' => $employee->full_name ?? 'N/A',
                             'leave_type' => $data['leave_type'],
@@ -954,7 +954,7 @@ class LeaveController extends Controller
                         ]);
                     } else {
                         $skippedCount++;
-                        \Log::info('Balance already synced, skipping', [
+                        Log::info('Balance already synced, skipping', [
                             'employee_id' => $data['employee_id'],
                             'leave_type' => $data['leave_type'],
                             'current_used' => $currentUsed,
@@ -962,14 +962,14 @@ class LeaveController extends Controller
                         ]);
                     }
                 } catch (\Exception $e) {
-                    \Log::error('Error syncing balance for ' . $key, [
+                    Log::error('Error syncing balance for ' . $key, [
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
                 }
             }
             
-            \Log::info('Leave balance sync completed', [
+            Log::info('Leave balance sync completed', [
                 'synced_balances' => $syncedCount,
                 'skipped' => $skippedCount,
                 'total_checked' => count($expectedUsed)
@@ -977,7 +977,7 @@ class LeaveController extends Controller
             
             return $syncedCount;
         } catch (\Exception $e) {
-            \Log::error('Error in syncApprovedLeaveBalances: ' . $e->getMessage(), [
+            Log::error('Error in syncApprovedLeaveBalances: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
             return 0;
@@ -995,7 +995,7 @@ class LeaveController extends Controller
             
             // Only restore if it was previously approved
             if ($leaveRequest->status !== 'approved' && $leaveRequest->status !== 'cancelled') {
-                \Log::info('Leave request not approved, skipping balance restoration', [
+                Log::info('Leave request not approved, skipping balance restoration', [
                     'leave_request_id' => $leaveRequest->id,
                     'status' => $leaveRequest->status
                 ]);
@@ -1003,12 +1003,12 @@ class LeaveController extends Controller
             }
 
             if (!$leaveRequest->employee) {
-                \Log::warning('Leave request has no employee for balance restoration: ' . $leaveRequest->id);
+                Log::warning('Leave request has no employee for balance restoration: ' . $leaveRequest->id);
                 return;
             }
 
             if (!$leaveRequest->start_date) {
-                \Log::warning('Leave request has no start_date for balance restoration: ' . $leaveRequest->id);
+                Log::warning('Leave request has no start_date for balance restoration: ' . $leaveRequest->id);
                 return;
             }
 
@@ -1018,19 +1018,19 @@ class LeaveController extends Controller
 
             $leaveBalance = $leaveRequest->employee->getLeaveBalanceForYear($year);
         if (!$leaveBalance) {
-                \Log::warning('Leave balance not found for employee ' . $leaveRequest->employee_id . ' year ' . $year . ' during restoration');
+                Log::warning('Leave balance not found for employee ' . $leaveRequest->employee_id . ' year ' . $year . ' during restoration');
             return;
         }
 
         $usedField = $leaveRequest->leave_type . '_days_used';
             if (!isset($leaveBalance->$usedField)) {
-                \Log::warning('Invalid leave type field: ' . $usedField . ' for leave request ' . $leaveRequest->id . ' during restoration');
+                Log::warning('Invalid leave type field: ' . $usedField . ' for leave request ' . $leaveRequest->id . ' during restoration');
                 return;
             }
 
             $daysRequested = $leaveRequest->days_requested ?? 0;
             if ($daysRequested <= 0) {
-                \Log::warning('Invalid days_requested: ' . $daysRequested . ' for leave request ' . $leaveRequest->id . ' during restoration');
+                Log::warning('Invalid days_requested: ' . $daysRequested . ' for leave request ' . $leaveRequest->id . ' during restoration');
                 return;
             }
 
@@ -1046,7 +1046,7 @@ class LeaveController extends Controller
             // Refresh to get updated values
             $leaveBalance->refresh();
             
-            \Log::info('Leave balance restored successfully', [
+            Log::info('Leave balance restored successfully', [
                 'leave_request_id' => $leaveRequest->id,
                 'employee_id' => $leaveRequest->employee_id,
                 'employee_name' => $leaveRequest->employee->full_name ?? 'N/A',
@@ -1060,7 +1060,7 @@ class LeaveController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error restoring leave balance: ' . $e->getMessage(), [
+            Log::error('Error restoring leave balance: ' . $e->getMessage(), [
                 'leave_request_id' => $leaveRequest->id ?? null,
                 'employee_id' => $leaveRequest->employee_id ?? null,
                 'leave_type' => $leaveRequest->leave_type ?? null,
@@ -1311,3 +1311,4 @@ class LeaveController extends Controller
         return response()->download($tempFile, $filename . '.xlsx')->deleteFileAfterSend(true);
     }
 }
+

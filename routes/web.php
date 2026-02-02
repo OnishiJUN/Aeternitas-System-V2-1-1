@@ -33,13 +33,14 @@ Route::middleware('guest')->group(function () {
     Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
     Route::get('/reset-password', [AuthController::class, 'showResetPassword'])->name('password.reset');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
-        Route::get('/hr/login-logs', [App\Http\Controllers\NotificationController::class, 'index'])
-        ->name('hr.login-logs')
-        ->middleware('role:admin,hr,manager');
 });
 
 // Protected routes
 Route::middleware(['auth', 'require.timein'])->group(function () {
+    // Notifications
+    Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index'])
+        ->name('notifications.index')
+        ->middleware('role:admin,hr,manager');
     // Dashboard
     Route::get('/dashboard', [RoleBasedDashboardController::class, 'index'])->name('dashboard');
    Route::get('/payroll/manage', [PayrollController::class, 'index'])->name('payroll.manage');

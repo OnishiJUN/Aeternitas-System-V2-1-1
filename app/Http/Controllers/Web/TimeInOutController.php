@@ -8,9 +8,11 @@ use App\Models\AttendanceLog;
 use App\Models\AttendanceSetting;
 use App\Models\AttendanceException;
 use App\Models\EmployeeBreak;
+use App\Models\TimeEntry;
 use App\Helpers\TimezoneHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class TimeInOutController extends Controller
@@ -45,8 +47,14 @@ class TimeInOutController extends Controller
         // Get today's attendance record
         $todayAttendance = $employee->getTodayAttendance();
         
+        // Load time entries if exists
+        if ($todayAttendance) {
+            $todayAttendance->load('timeEntries', 'breaks');
+        }
+        
         // Get recent activity (last 5 days)
         $recentActivity = $employee->attendanceRecords()
+            ->with('timeEntries')
             ->where('date', '>=', today()->subDays(5))
             ->orderBy('date', 'desc')
             ->get();
@@ -83,10 +91,19 @@ class TimeInOutController extends Controller
 
         $today = today();
         
-        // Check if already timed in today
+        // Check if there's an active time entry (already clocked in but not out)
         $existingRecord = $employee->getTodayAttendance();
-        if ($existingRecord && $existingRecord->time_in) {
-            return response()->json(['error' => 'You have already timed in today.'], 400);
+        if ($existingRecord) {
+            $existingRecord->load('timeEntries');
+            $activeEntry = $existingRecord->getActiveTimeEntry();
+            if ($activeEntry) {
+                \Log::info('Time in blocked - active entry exists', [
+                    'employee_id' => $employee->id,
+                    'active_entry_id' => $activeEntry->id,
+                    'active_entry_time_in' => $activeEntry->time_in
+                ]);
+                return response()->json(['error' => 'You are already clocked in. Please clock out first before clocking in again.'], 400);
+            }
         }
 
         // Check if it's a working day
@@ -96,36 +113,74 @@ class TimeInOutController extends Controller
 
         $currentTime = TimezoneHelper::now();
 
-        // Create or update attendance record
-        $attendanceRecord = AttendanceRecord::updateOrCreate(
-            [
-                'employee_id' => $employee->id,
-                'date' => $today,
-            ],
-            [
+        try {
+            // Create or get today's attendance record
+            $attendanceRecord = AttendanceRecord::firstOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'date' => $today,
+                ],
+                [
+                    'status' => 'present',
+                ]
+            );
+
+            // Create a new time entry
+            $timeEntry = TimeEntry::create([
+                'attendance_record_id' => $attendanceRecord->id,
                 'time_in' => $currentTime,
-                'status' => 'present',
-            ]
-        );
+                'entry_type' => 'regular',
+            ]);
 
-        // Log the action
-        $this->logAttendanceAction($attendanceRecord, 'time_in', null, [
-            'time_in' => $currentTime->toDateTimeString(),
-        ], 'Employee timed in');
+            // Update the attendance record's time_in if this is the first entry of the day
+            $isFirstEntry = $attendanceRecord->timeEntries()->count() === 1;
+            if ($isFirstEntry) {
+                $attendanceRecord->update([
+                    'time_in' => $currentTime,
+                    'status' => 'present',
+                ]);
+            }
 
-        // Calculate if late
-        $isLate = $this->checkIfLate($employee, $today, $currentTime);
-        if ($isLate) {
-            $attendanceRecord->update(['status' => 'late']);
+            // Log the action
+            $this->logAttendanceAction($attendanceRecord, 'time_in', null, [
+                'time_in' => $currentTime->toDateTimeString(),
+                'time_entry_id' => $timeEntry->id,
+                'entry_number' => $attendanceRecord->timeEntries()->count(),
+            ], 'Employee timed in');
+
+            // Calculate if late (only for first entry)
+            $isLate = false;
+            if ($isFirstEntry) {
+                $isLate = $this->checkIfLate($employee, $today, $currentTime);
+                if ($isLate) {
+                    $attendanceRecord->update(['status' => 'late']);
+                }
+            }
+
+            // Get all time entries for today
+            $attendanceRecord->load('timeEntries');
+            $entryCount = $attendanceRecord->timeEntries->count();
+
+            return response()->json([
+                'success' => true,
+                'message' => $isLate 
+                    ? 'Time in recorded (Late arrival)' 
+                    : ($isFirstEntry ? 'Time in recorded successfully' : "Time in #{$entryCount} recorded"),
+                'time_in' => $currentTime->format('H:i:s'),
+                'is_late' => $isLate,
+                'is_first_entry' => $isFirstEntry,
+                'entry_number' => $entryCount,
+                'time_entry' => $timeEntry,
+                'attendance_record' => $attendanceRecord->fresh(['timeEntries', 'breaks']),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Time in failed', [
+                'employee_id' => $employee->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => 'Failed to record time in: ' . $e->getMessage()], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => $isLate ? 'Time in recorded (Late arrival)' : 'Time in recorded successfully',
-            'time_in' => $currentTime->format('H:i:s'),
-            'is_late' => $isLate,
-            'attendance_record' => $attendanceRecord->fresh(),
-        ]);
     }
 
     /**
@@ -159,50 +214,60 @@ class TimeInOutController extends Controller
         
         // Get today's attendance record
         $attendanceRecord = $employee->getTodayAttendance();
-        if (!$attendanceRecord || !$attendanceRecord->time_in) {
+        if (!$attendanceRecord) {
             return response()->json(['error' => 'You must time in first before timing out.'], 400);
         }
 
-        if ($attendanceRecord->time_out) {
-            return response()->json(['error' => 'You have already timed out today.'], 400);
+        // Load time entries and breaks
+        $attendanceRecord->load('timeEntries', 'breaks');
+
+        // Find active time entry (clocked in but not out)
+        $activeEntry = $attendanceRecord->getActiveTimeEntry();
+        if (!$activeEntry) {
+            return response()->json(['error' => 'No active time entry found. You must time in first.'], 400);
         }
 
         $currentTime = TimezoneHelper::now();
 
-        // Load breaks relationship to ensure it's available for calculation
-        $attendanceRecord->load('breaks');
-
-        // Update time_out first so we can use the model's calculateTotalHours method
-        $attendanceRecord->update([
+        // Update the active time entry with time_out
+        $activeEntry->update([
             'time_out' => $currentTime,
+            'hours_worked' => $activeEntry->calculateHoursWorked(),
         ]);
 
-        // Refresh the record to get updated time_out
-        $attendanceRecord->refresh();
-        $attendanceRecord->load('breaks');
+        // Refresh time entries
+        $attendanceRecord->load('timeEntries', 'breaks');
 
-        // Use the model's calculateTotalHours method which properly handles breaks
-        $totalHours = $attendanceRecord->calculateTotalHours();
+        // Calculate total hours from all completed entries
+        $totalHours = $attendanceRecord->calculateTotalHoursFromEntries();
         $hoursBreakdown = $attendanceRecord->calculateRegularAndOvertimeHours();
 
-        // Update attendance record with calculated values
-        $oldValues = [
-            'time_out' => null,
-            'total_hours' => $attendanceRecord->total_hours,
-            'regular_hours' => $attendanceRecord->regular_hours,
-            'overtime_hours' => $attendanceRecord->overtime_hours,
-        ];
-
-        $attendanceRecord->update([
+        // Check if there are more active entries
+        $hasMoreActiveEntries = $attendanceRecord->hasActiveTimeEntry();
+        
+        // Update attendance record - only set time_out if no more active entries
+        $updateData = [
             'total_hours' => $totalHours,
             'regular_hours' => $hoursBreakdown['regular_hours'],
             'overtime_hours' => $hoursBreakdown['overtime_hours'],
             'status' => $this->calculateStatus($totalHours, $attendanceRecord->time_in),
-        ]);
+        ];
+
+        // Set the main time_out to the latest time_out if no active entries remain
+        if (!$hasMoreActiveEntries) {
+            $lastEntry = $attendanceRecord->getLastTimeEntry();
+            if ($lastEntry && $lastEntry->time_out) {
+                $updateData['time_out'] = $lastEntry->time_out;
+            }
+        }
+
+        $attendanceRecord->update($updateData);
 
         // Log the action
-        $this->logAttendanceAction($attendanceRecord, 'time_out', $oldValues, [
+        $this->logAttendanceAction($attendanceRecord, 'time_out', null, [
             'time_out' => $currentTime->toDateTimeString(),
+            'time_entry_id' => $activeEntry->id,
+            'entry_hours' => $activeEntry->hours_worked,
             'total_hours' => $totalHours,
             'regular_hours' => $hoursBreakdown['regular_hours'],
             'overtime_hours' => $hoursBreakdown['overtime_hours'],
@@ -210,16 +275,24 @@ class TimeInOutController extends Controller
 
         // Refresh to get latest values
         $attendanceRecord->refresh();
-        $attendanceRecord->load('breaks');
+        $attendanceRecord->load('timeEntries', 'breaks');
+
+        $entryCount = $attendanceRecord->timeEntries->count();
 
         return response()->json([
             'success' => true,
-            'message' => 'Time out recorded successfully',
+            'message' => $entryCount > 1 
+                ? "Time out recorded for entry #{$entryCount}" 
+                : 'Time out recorded successfully',
             'time_out' => $currentTime->format('H:i:s'),
+            'entry_hours' => $activeEntry->hours_worked,
             'total_hours' => $totalHours,
             'regular_hours' => $hoursBreakdown['regular_hours'],
             'overtime_hours' => $hoursBreakdown['overtime_hours'],
-            'attendance_record' => $attendanceRecord->fresh(['breaks']),
+            'entry_count' => $entryCount,
+            'has_active_entries' => $hasMoreActiveEntries,
+            'time_entry' => $activeEntry,
+            'attendance_record' => $attendanceRecord->fresh(['timeEntries', 'breaks']),
         ]);
     }
 
@@ -405,11 +478,12 @@ class TimeInOutController extends Controller
                 'can_time_out' => false,
                 'can_break_start' => false,
                 'can_break_end' => false,
+                'time_entries' => [],
             ]);
         }
 
-        // Load breaks relationship
-        $attendanceRecord->load('breaks');
+        // Load breaks and time entries relationships
+        $attendanceRecord->load('breaks', 'timeEntries');
         
         // Find active break (one without break_end)
         $activeBreak = $attendanceRecord->breaks()->whereNull('break_end')->first();
@@ -417,9 +491,14 @@ class TimeInOutController extends Controller
         $totalBreakMinutes = $attendanceRecord->getTotalBreakMinutes();
         $isOverBreak = $totalBreakMinutes > 90;
 
-        $canTimeIn = !$attendanceRecord->time_in;
-        $canTimeOut = $attendanceRecord->time_in && !$attendanceRecord->time_out;
-        $canBreakStart = $attendanceRecord->time_in && !$attendanceRecord->time_out && !$activeBreak && $breakCount < 2;
+        // Check for active time entry (clocked in but not out)
+        $activeTimeEntry = $attendanceRecord->getActiveTimeEntry();
+        $hasActiveEntry = $activeTimeEntry !== null;
+
+        // Multiple time entries support: can time in again if no active entry
+        $canTimeIn = !$hasActiveEntry;
+        $canTimeOut = $hasActiveEntry;
+        $canBreakStart = $hasActiveEntry && !$activeBreak && $breakCount < 2;
         $canBreakEnd = $activeBreak !== null;
 
         // Get all breaks with formatted data
@@ -430,6 +509,19 @@ class TimeInOutController extends Controller
                 'break_end' => $break->break_end ? $break->break_end->toIso8601String() : null,
                 'break_duration_minutes' => $break->break_duration_minutes,
                 'is_active' => $break->break_end === null,
+            ];
+        });
+
+        // Get all time entries with formatted data
+        $timeEntries = $attendanceRecord->timeEntries->map(function ($entry) {
+            return [
+                'id' => $entry->id,
+                'time_in' => $entry->time_in ? $entry->time_in->toIso8601String() : null,
+                'time_out' => $entry->time_out ? $entry->time_out->toIso8601String() : null,
+                'hours_worked' => $entry->hours_worked,
+                'duration' => $entry->duration,
+                'entry_type' => $entry->entry_type,
+                'is_active' => $entry->time_out === null,
             ];
         });
 
@@ -444,6 +536,12 @@ class TimeInOutController extends Controller
             'break_start' => $breakStart, // Active break start for backward compatibility
             'break_end' => $breakEnd, // For backward compatibility
             'breaks' => $breaks,
+            'time_entries' => $timeEntries,
+            'active_time_entry' => $activeTimeEntry ? [
+                'id' => $activeTimeEntry->id,
+                'time_in' => $activeTimeEntry->time_in->toIso8601String(),
+            ] : null,
+            'entry_count' => $attendanceRecord->timeEntries->count(),
             'active_break' => $activeBreak ? [
                 'id' => $activeBreak->id,
                 'break_start' => $activeBreak->break_start->toIso8601String(),

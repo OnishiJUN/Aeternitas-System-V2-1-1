@@ -55,7 +55,7 @@
                     <div class="flex items-center space-x-2">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             <i class="fas fa-users mr-1"></i>
-                            {{ $department->employees_count }} {{ Str::plural('employee', $department->employees_count) }}
+                            {{ $department->employees_count }} {{ \Illuminate\Support\Str::plural('employee', $department->employees_count) }}
                         </span>
                     </div>
                 </div>

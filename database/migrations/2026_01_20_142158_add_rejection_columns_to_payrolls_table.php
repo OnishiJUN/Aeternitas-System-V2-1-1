@@ -16,16 +16,21 @@ class AddRejectionColumnsToPayrollsTable extends Migration
             }
             
             if (!Schema::hasColumn('payrolls', 'rejected_by')) {
-                // Check the users table structure first
-                $usersTableInfo = DB::select(DB::raw("SHOW COLUMNS FROM users WHERE Field = 'id'"));
-                $usersIdType = $usersTableInfo[0]->Type ?? null;
-                
-                if (str_contains($usersIdType, 'char')) {
-                    // Users table uses UUID
-                    $table->uuid('rejected_by')->nullable()->after('rejected_at');
+                if (Schema::hasTable('users')) {
+                    // Check the users table structure first
+                    $usersTableInfo = DB::select("SHOW COLUMNS FROM users WHERE Field = 'id'");
+                    $usersIdType = $usersTableInfo[0]->Type ?? null;
+
+                    if ($usersIdType && str_contains($usersIdType, 'char')) {
+                        // Users table uses UUID
+                        $table->uuid('rejected_by')->nullable()->after('rejected_at');
+                    } else {
+                        // Users table uses bigInteger
+                        $table->unsignedBigInteger('rejected_by')->nullable()->after('rejected_at');
+                    }
                 } else {
-                    // Users table uses bigInteger
-                    $table->unsignedBigInteger('rejected_by')->nullable()->after('rejected_at');
+                    // Fallback to UUID if users table is not available yet
+                    $table->uuid('rejected_by')->nullable()->after('rejected_at');
                 }
             }
             
@@ -36,7 +41,7 @@ class AddRejectionColumnsToPayrollsTable extends Migration
         
         // Add foreign key constraint in a separate statement
         Schema::table('payrolls', function (Blueprint $table) {
-            if (Schema::hasColumn('payrolls', 'rejected_by')) {
+            if (Schema::hasTable('users') && Schema::hasColumn('payrolls', 'rejected_by')) {
                 $table->foreign('rejected_by')
                     ->references('id')
                     ->on('users')

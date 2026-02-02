@@ -1,4 +1,6 @@
-@extends('layouts.app')
+@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'hr.login-logs'])
+
+@section('title', 'Login Logs')
 
 @section('content')
 <div class="p-4 sm:p-6 lg:p-8">

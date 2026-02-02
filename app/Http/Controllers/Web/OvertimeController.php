@@ -10,6 +10,7 @@ use App\Helpers\TimezoneHelper;
 use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -84,7 +85,7 @@ class OvertimeController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        \Log::info('Overtime records retrieved', [
+        Log::info('Overtime records retrieved', [
             'user_id' => $user->id,
             'role' => $user->role,
             'total_records' => $overtimeRequests->total(),

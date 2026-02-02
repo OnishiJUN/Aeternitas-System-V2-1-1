@@ -162,20 +162,19 @@
                     <span class="text-xs font-medium">LIVE</span>
                 </div>
             </div>
-            @if($todayAttendance && $todayAttendance->time_in && !$todayAttendance->time_out)
-                <div class="mt-4 pt-4 border-t border-blue-400" id="time-tracking-section">
-                    <!-- Break Time Display (shown when on break) -->
-                    <div id="break-time-section" style="display: none;">
-                        <div class="text-lg opacity-90">On Break for:</div>
-                        <div class="text-2xl font-bold text-yellow-300" id="break-time">0h 0m</div>
-                    </div>
-                    <!-- Working Time Display (shown when working, not on break) -->
-                    <div id="working-time-section">
+            <!-- Working Time Indicator (controlled by JavaScript) -->
+            <div class="mt-4 pt-4 border-t border-blue-400" id="time-tracking-section" style="display: none;">
+                <!-- Break Time Display (shown when on break) -->
+                <div id="break-time-section" style="display: none;">
+                    <div class="text-lg opacity-90">On Break for:</div>
+                    <div class="text-2xl font-bold text-yellow-300" id="break-time">0h 0m</div>
+                </div>
+                <!-- Working Time Display (shown when working, not on break) -->
+                <div id="working-time-section">
                     <div class="text-lg opacity-90">Working for:</div>
                     <div class="text-2xl font-bold" id="working-time">0h 0m</div>
-                    </div>
                 </div>
-            @endif
+            </div>
         </div>
 
         <!-- Attendance Status Card -->
@@ -294,7 +293,7 @@
             </div>
 
             <!-- Break Information -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div class="text-center p-4 bg-purple-50 rounded-lg">
                     <div class="text-2xl font-bold text-purple-600" id="summary-break-count">0</div>
                     <div class="text-sm text-gray-600">Break Count</div>
@@ -306,6 +305,21 @@
                 <div class="text-center p-4 bg-pink-50 rounded-lg">
                     <div class="text-2xl font-bold text-pink-600" id="summary-break-limit">1.5h</div>
                     <div class="text-sm text-gray-600">Break Limit</div>
+                </div>
+            </div>
+
+            <!-- Today's Time Entries -->
+            <div class="border-t border-gray-200 pt-4">
+                <h4 class="text-md font-semibold text-gray-900 mb-3">
+                    <i class="fas fa-list-ul text-blue-500 mr-2"></i>
+                    Today's Time Entries
+                    <span class="text-sm font-normal text-gray-500" id="entry-count-badge">(0 entries)</span>
+                </h4>
+                <div class="space-y-2" id="time-entries-list">
+                    <div class="text-center py-4 text-gray-500">
+                        <i class="fas fa-clock text-2xl mb-2"></i>
+                        <p class="text-sm">No time entries yet. Clock in to start.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -633,24 +647,33 @@ function updateWorkingTime() {
     let breakStart = null;
     let hasBreakEnd = false;
     
-    // First check currentStatus (from API)
-    if (currentStatus && currentStatus.time_in && !currentStatus.time_out) {
+    // For multiple entries system: Use the active time entry's time_in
+    if (currentStatus && currentStatus.active_time_entry && currentStatus.active_time_entry.time_in) {
+        timeIn = new Date(currentStatus.active_time_entry.time_in);
+        hasTimeOut = !!currentStatus.active_time_entry.time_out;
+        console.log('Using active time entry for working time:', currentStatus.active_time_entry);
+    }
+    // First check currentStatus (from API) - for backward compatibility
+    else if (currentStatus && currentStatus.time_in && !currentStatus.time_out) {
         // Parse time_in from currentStatus (it might be a formatted string)
         timeIn = new Date(currentStatus.time_in);
         hasTimeOut = !!currentStatus.time_out;
-        if (currentStatus.break_start) {
-            breakStart = new Date(currentStatus.break_start);
-            hasBreakEnd = !!currentStatus.break_end;
-        }
     }
     // Fallback to attendanceRecord (from initial page load)
     else if (attendanceRecord && attendanceRecord.time_in && !attendanceRecord.time_out) {
         timeIn = new Date(attendanceRecord.time_in);
         hasTimeOut = !!attendanceRecord.time_out;
-        if (attendanceRecord.break_start) {
-            breakStart = new Date(attendanceRecord.break_start);
-            hasBreakEnd = !!attendanceRecord.break_end;
+    }
+    
+    // Check for active break
+    if (currentStatus) {
+        if (currentStatus.break_start) {
+            breakStart = new Date(currentStatus.break_start);
+            hasBreakEnd = !!currentStatus.break_end;
         }
+    } else if (attendanceRecord && attendanceRecord.break_start) {
+        breakStart = new Date(attendanceRecord.break_start);
+        hasBreakEnd = !!attendanceRecord.break_end;
     }
     
     // Update break time if on break
@@ -825,7 +848,8 @@ async function loadAttendanceStatus() {
                         break_start: breakStart,
                         break_end: record.break_end || data.break_end || null,
                         status: record.status || data.status || 'present',
-                        breaks: data.breaks || []
+                        breaks: data.breaks || [],
+                        time_entries: data.time_entries || []
                     };
                 }
                 
@@ -847,6 +871,18 @@ async function loadAttendanceStatus() {
 // Initialize UI with database data
 function initializeUI() {
     if (attendanceRecord) {
+        // Check if there are time entries
+        const timeEntries = attendanceRecord.time_entries || [];
+        const activeEntry = timeEntries.find(entry => !entry.time_out);
+        const hasActiveEntry = activeEntry !== null && activeEntry !== undefined;
+        
+        console.log('Initializing UI with attendance record:', {
+            hasRecord: !!attendanceRecord,
+            timeEntriesCount: timeEntries.length,
+            hasActiveEntry: hasActiveEntry,
+            activeEntry: activeEntry
+        });
+        
         // Use database data to set initial status - keep as ISO8601 strings for proper parsing
         currentStatus = {
             status: attendanceRecord.status || 'not_started',
@@ -854,16 +890,35 @@ function initializeUI() {
             time_out: attendanceRecord.time_out || null,
             break_start: attendanceRecord.break_start || null,
             break_end: attendanceRecord.break_end || null,
-            total_hours: attendanceRecord.total_hours || 0
+            total_hours: attendanceRecord.total_hours || 0,
+            time_entries: timeEntries,
+            active_time_entry: activeEntry || null,
+            entry_count: timeEntries.length,
+            breaks: attendanceRecord.breaks || [],
+            // Set can_time_in and can_time_out based on active entry
+            can_time_in: !hasActiveEntry,
+            can_time_out: hasActiveEntry
         };
+        
+        console.log('Initial currentStatus:', {
+            can_time_in: currentStatus.can_time_in,
+            can_time_out: currentStatus.can_time_out,
+            entry_count: currentStatus.entry_count
+        });
     } else {
+        console.log('No attendance record found, initializing empty status');
         currentStatus = {
             status: 'not_started',
             time_in: null,
             time_out: null,
             break_start: null,
             break_end: null,
-            total_hours: 0
+            total_hours: 0,
+            time_entries: [],
+            active_time_entry: null,
+            entry_count: 0,
+            can_time_in: true,
+            can_time_out: false
         };
     }
     updateUI();
@@ -928,100 +983,151 @@ function updateUI() {
     const breakEndBtn = document.getElementById('break-end-btn');
     const breakEndCard = document.getElementById('break-end-card');
 
+    // Use can_time_in/can_time_out from API if available (supports multiple entries)
+    const canTimeIn = currentStatus.can_time_in !== undefined ? currentStatus.can_time_in : !currentStatus.time_in;
+    const canTimeOut = currentStatus.can_time_out !== undefined ? currentStatus.can_time_out : (currentStatus.time_in && !currentStatus.time_out);
+    const hasActiveEntry = currentStatus.active_time_entry !== null && currentStatus.active_time_entry !== undefined;
+    const entryCount = currentStatus.entry_count || 0;
+    
+    console.log('UpdateUI - Button states:', {
+        canTimeIn,
+        canTimeOut,
+        hasActiveEntry,
+        entryCount,
+        activeEntry: currentStatus.active_time_entry
+    });
+    
+    // Show/hide working time tracking section based on active entry
+    const timeTrackingSection = document.getElementById('time-tracking-section');
+    if (timeTrackingSection) {
+        if (hasActiveEntry) {
+            timeTrackingSection.style.display = 'block';
+            console.log('Showing working time tracker');
+        } else {
+            timeTrackingSection.style.display = 'none';
+            console.log('Hiding working time tracker');
+        }
+    }
+
     // Update status display
-    if (currentStatus.status === 'not_started' || !currentStatus.time_in) {
+    if (currentStatus.status === 'not_started' || (!currentStatus.time_in && entryCount === 0)) {
         statusIcon.className = 'inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4';
         statusIcon.innerHTML = '<i class="fas fa-check-circle text-3xl text-green-600"></i>';
         statusTitle.textContent = 'Ready to Clock In';
         statusMessage.textContent = 'You haven\'t clocked in today yet';
         
+        // Hide break section
+        if (breakSection) breakSection.style.display = 'none';
+    } else if (hasActiveEntry) {
+        // Currently clocked in (has active time entry)
+        statusIcon.className = 'inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-4';
+        statusIcon.innerHTML = '<i class="fas fa-clock text-3xl text-blue-600"></i>';
+        
+        const hasActiveBreak = currentStatus.active_break !== null || 
+                              (currentStatus.breaks && currentStatus.breaks.some(b => b.is_active)) ||
+                              (currentStatus.break_start && !currentStatus.break_end);
+        
+        if (hasActiveBreak) {
+            statusTitle.textContent = 'On Break';
+            statusMessage.textContent = `Break started - Entry #${entryCount}`;
+        } else {
+            statusTitle.textContent = entryCount > 1 ? `Working (Entry #${entryCount})` : 'Currently Working';
+            statusMessage.textContent = entryCount > 1 
+                ? `Time entry #${entryCount} in progress`
+                : `Clocked in at ${formatTimeForSummary(currentStatus.time_in)}`;
+        }
+        
+        // Show break section when working
+        if (breakSection) breakSection.style.display = 'grid';
+    } else if (entryCount > 0 && !hasActiveEntry) {
+        // Has entries but none active - ready to clock in again
+        statusIcon.className = 'inline-flex items-center justify-center w-20 h-20 bg-purple-100 rounded-full mb-4';
+        statusIcon.innerHTML = '<i class="fas fa-history text-3xl text-purple-600"></i>';
+        statusTitle.textContent = 'Ready for Another Entry';
+        statusMessage.textContent = `${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} recorded today. You can clock in again.`;
+        
+        // Show break section but breaks are tied to entries
+        if (breakSection) breakSection.style.display = 'grid';
+    }
+
+    // Update Time In button based on can_time_in
+    if (canTimeIn) {
         timeInBtn.disabled = false;
         timeInBtn.className = 'w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
+        timeInBtn.innerHTML = entryCount > 0 
+            ? `<i class="fas fa-play mr-2"></i>Clock In Again (#${entryCount + 1})`
+            : '<i class="fas fa-play mr-2"></i>Clock In Now';
+        console.log('Time In button: ENABLED');
+    } else {
+        timeInBtn.disabled = true;
+        timeInBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
+        timeInBtn.innerHTML = '<i class="fas fa-play mr-2"></i>Clock In Now';
+        console.log('Time In button: DISABLED');
+    }
+
+    // Update Time Out button based on can_time_out
+    if (canTimeOut) {
+        timeOutCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow';
+        timeOutBtn.disabled = false;
+        timeOutBtn.className = 'w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
+        console.log('Time Out button: ENABLED');
+    } else {
         timeOutCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow opacity-50';
         timeOutBtn.disabled = true;
         timeOutBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
+        console.log('Time Out button: DISABLED');
+    }
+    
+    // Update break buttons
+    if (hasActiveEntry) {
+        const hasActiveBreak = currentStatus.active_break !== null || 
+                              (currentStatus.breaks && currentStatus.breaks.some(b => b.is_active)) ||
+                              (currentStatus.break_start && !currentStatus.break_end);
+        const breakCount = currentStatus.break_count || 
+                          (currentStatus.breaks ? currentStatus.breaks.length : 0) ||
+                          ((currentStatus.break_start || currentStatus.break_end) ? 1 : 0);
+        const canStartBreak = currentStatus.can_break_start !== undefined ? currentStatus.can_break_start : 
+                             (!hasActiveBreak && breakCount < 2);
         
-        // Hide break section
-        if (breakSection) breakSection.style.display = 'none';
-    } else if (currentStatus.status === 'present' || currentStatus.status === 'late' || currentStatus.time_in) {
-        // Show break section when timed in
-        if (breakSection) breakSection.style.display = 'grid';
-        
-        if (currentStatus.time_out) {
-            statusIcon.className = 'inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4';
-            statusIcon.innerHTML = '<i class="fas fa-check-circle text-3xl text-green-600"></i>';
-            statusTitle.textContent = 'Workday Complete';
-            statusMessage.textContent = `Clocked out at ${currentStatus.time_out}`;
-            
-            timeInBtn.disabled = true;
-            timeInBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
-            timeOutCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow opacity-50';
-            timeOutBtn.disabled = true;
-            timeOutBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
-            
-            // Disable break buttons when timed out
+        if (hasActiveBreak) {
+            // On break - show end break button
             if (breakStartBtn) {
                 breakStartBtn.disabled = true;
                 breakStartBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
             }
             if (breakEndBtn) {
+                breakEndBtn.disabled = false;
+                breakEndBtn.className = 'w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
+            }
+            if (breakEndCard) breakEndCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow';
+        } else {
+            // Not on break - show start break button if allowed
+            if (breakStartBtn) {
+                breakStartBtn.disabled = !canStartBreak;
+                if (canStartBreak) {
+                    breakStartBtn.className = 'w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
+                } else {
+                    breakStartBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
+                    if (breakCount >= 2) {
+                        breakStartBtn.title = 'Maximum of 2 breaks per day allowed';
+                    }
+                }
+            }
+            if (breakEndBtn) {
                 breakEndBtn.disabled = true;
                 breakEndBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
             }
-        } else {
-            statusIcon.className = 'inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-4';
-            statusIcon.innerHTML = '<i class="fas fa-clock text-3xl text-blue-600"></i>';
-            statusTitle.textContent = currentStatus.break_start && !currentStatus.break_end ? 'On Break' : 'Currently Working';
-            statusMessage.textContent = currentStatus.break_start && !currentStatus.break_end ? 
-                `Break started at ${currentStatus.break_start}` : 
-                `Clocked in at ${currentStatus.time_in}`;
-            
-            timeInBtn.disabled = true;
-            timeInBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
-            timeOutCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow';
-            timeOutBtn.disabled = false;
-            timeOutBtn.className = 'w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
-            
-            // Update break buttons - check for active break
-            const hasActiveBreak = currentStatus.active_break !== null || 
-                                  (currentStatus.breaks && currentStatus.breaks.some(b => b.is_active)) ||
-                                  (currentStatus.break_start && !currentStatus.break_end);
-            const breakCount = currentStatus.break_count || 
-                              (currentStatus.breaks ? currentStatus.breaks.length : 0) ||
-                              ((currentStatus.break_start || currentStatus.break_end) ? 1 : 0);
-            const canStartBreak = currentStatus.can_break_start !== undefined ? currentStatus.can_break_start : 
-                                 (!hasActiveBreak && breakCount < 2);
-            
-            if (hasActiveBreak) {
-                // On break - show end break button
-                if (breakStartBtn) {
-                    breakStartBtn.disabled = true;
-                    breakStartBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
-                }
-                if (breakEndBtn) {
-                    breakEndBtn.disabled = false;
-                    breakEndBtn.className = 'w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
-                }
-                if (breakEndCard) breakEndCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow';
-            } else {
-                // Not on break - show start break button if allowed
-                if (breakStartBtn) {
-                    breakStartBtn.disabled = !canStartBreak;
-                    if (canStartBreak) {
-                    breakStartBtn.className = 'w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors';
-                    } else {
-                        breakStartBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
-                        if (breakCount >= 2) {
-                            breakStartBtn.title = 'Maximum of 2 breaks per day allowed';
-                        }
-                    }
-                }
-                if (breakEndBtn) {
-                    breakEndBtn.disabled = true;
-                    breakEndBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
-                }
-                if (breakEndCard) breakEndCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow opacity-50';
-            }
+            if (breakEndCard) breakEndCard.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow opacity-50';
+        }
+    } else {
+        // No active entry - disable break buttons
+        if (breakStartBtn) {
+            breakStartBtn.disabled = true;
+            breakStartBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
+        }
+        if (breakEndBtn) {
+            breakEndBtn.disabled = true;
+            breakEndBtn.className = 'w-full bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg cursor-not-allowed';
         }
     }
 
@@ -1132,6 +1238,85 @@ function updateUI() {
     
     // Update total hours display
     updateTotalHoursDisplay();
+    
+    // Update time entries list
+    updateTimeEntriesList();
+}
+
+// Render time entries list
+function updateTimeEntriesList() {
+    const container = document.getElementById('time-entries-list');
+    const countBadge = document.getElementById('entry-count-badge');
+    
+    if (!container) return;
+    
+    const timeEntries = currentStatus?.time_entries || [];
+    
+    // Update count badge
+    if (countBadge) {
+        countBadge.textContent = `(${timeEntries.length} ${timeEntries.length === 1 ? 'entry' : 'entries'})`;
+    }
+    
+    if (timeEntries.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 text-gray-500">
+                <i class="fas fa-clock text-2xl mb-2"></i>
+                <p class="text-sm">No time entries yet. Clock in to start.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Render each time entry
+    let html = '';
+    timeEntries.forEach((entry, index) => {
+        const isActive = entry.is_active;
+        const entryNum = index + 1;
+        const timeIn = formatTimeForSummary(entry.time_in);
+        const timeOut = entry.time_out ? formatTimeForSummary(entry.time_out) : '--:--';
+        const duration = entry.duration || (entry.hours_worked ? formatHoursMinutes(entry.hours_worked) : 'In progress');
+        
+        const bgColor = isActive ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200';
+        const statusBadge = isActive 
+            ? '<span class="px-2 py-0.5 text-xs bg-blue-500 text-white rounded-full">Active</span>'
+            : '<span class="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Completed</span>';
+        
+        html += `
+            <div class="flex items-center justify-between p-3 ${bgColor} border rounded-lg">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 ${isActive ? 'bg-blue-100' : 'bg-gray-200'} rounded-full flex items-center justify-center mr-3">
+                        <span class="text-sm font-bold ${isActive ? 'text-blue-600' : 'text-gray-600'}">#${entryNum}</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium text-gray-900">Entry ${entryNum}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            <i class="fas fa-sign-in-alt text-green-500 mr-1"></i>${timeIn}
+                            <span class="mx-2">→</span>
+                            <i class="fas fa-sign-out-alt text-red-500 mr-1"></i>${timeOut}
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-lg font-semibold ${isActive ? 'text-blue-600' : 'text-gray-700'}">${duration}</div>
+                    <div class="text-xs text-gray-500">${entry.entry_type || 'regular'}</div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Format hours as Xh Ym
+function formatHoursMinutes(hours) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
 }
 
 // Time In function
@@ -1155,12 +1340,10 @@ async function timeIn() {
         
         if (response.ok) {
             showSuccess(data.message);
+            // Update status immediately without page reload
             await loadAttendanceStatus();
-            // Refresh the page to show updated recent activity
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
         } else {
+            console.error('Time in failed:', data);
             showError(data.error || 'Failed to clock in');
         }
     } catch (error) {
@@ -1193,11 +1376,8 @@ async function timeOut() {
         
         if (response.ok) {
             showSuccess(data.message);
+            // Update status immediately without page reload
             await loadAttendanceStatus();
-            // Refresh the page to show updated recent activity
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
         } else {
             showError(data.error || 'Failed to clock out');
         }

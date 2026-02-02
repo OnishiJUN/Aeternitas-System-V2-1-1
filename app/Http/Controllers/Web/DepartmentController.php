@@ -32,7 +32,7 @@ class DepartmentController extends Controller
     public function create()
     {
         $user = auth()->user();
-        return view('departments.create', compact('user'));
+        return view('departments.form', compact('user'));
     }
 
     public function store(Request $request)
@@ -66,7 +66,7 @@ class DepartmentController extends Controller
     public function edit(Department $department)
     {
         $user = auth()->user();
-        return view('departments.edit', compact('department', 'user'));
+        return view('departments.form', compact('department', 'user'));
     }
 
     public function update(Request $request, Department $department)

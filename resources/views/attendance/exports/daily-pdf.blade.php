@@ -1,83 +1,45 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Daily Attendance Report</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 10px;
-            margin: 0;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 18px;
-            color: #333;
-        }
-        .header p {
-            margin: 5px 0;
-            font-size: 12px;
-            color: #666;
-        }
-        .summary {
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-        }
-        .summary h3 {
-            margin: 0 0 10px 0;
-            font-size: 12px;
-            color: #333;
-        }
-        .summary-row {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 5px;
-        }
-        .summary-item {
-            text-align: center;
-        }
-        .summary-item strong {
-            display: block;
-            font-size: 14px;
-            color: #333;
-        }
-        .summary-item span {
-            font-size: 10px;
-            color: #666;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th {
-            background-color: #4472C4;
-            color: white;
-            padding: 8px;
-            text-align: left;
-            font-weight: bold;
-            border: 1px solid #333;
-        }
-        td {
-            padding: 6px;
-            border: 1px solid #ddd;
-        }
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .status-present {
-            color: #10b981;
-            font-weight: bold;
-        }
+@extends('layouts.pdf-base')
+
+@section('title', 'Daily Attendance Report')
+
+@section('content')
+<div class="pdf-header">
+    <div class="document-title">Daily Attendance Report</div>
+    <div class="document-info">Generated on: {{ $date ?? date('Y-m-d') }}</div>
+</div>
+
+@if(isset($summary))
+<div class="summary-section">
+    <h3>Summary</h3>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;">
+        <div class="text-center">
+            <strong style="display: block; font-size: 14px;">{{ $summary['present'] ?? 0 }}</strong>
+            <span style="font-size: 10px; color: #666;">Present</span>
+        </div>
+        <div class="text-center">
+            <strong style="display: block; font-size: 14px;">{{ $summary['absent'] ?? 0 }}</strong>
+            <span style="font-size: 10px; color: #666;">Absent</span>
+        </div>
+        <div class="text-center">
+            <strong style="display: block; font-size: 14px;">{{ $summary['late'] ?? 0 }}</strong>
+            <span style="font-size: 10px; color: #666;">Late</span>
+        </div>
+    </div>
+</div>
+@endif
+
+<table>
+    <thead>
+        <tr>
+            <th>Employee</th>
+            <th>Department</th>
+            <th>Time In</th>
+            <th>Time Out</th>
+            <th>Hours</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
         .status-absent {
             color: #ef4444;
             font-weight: bold;

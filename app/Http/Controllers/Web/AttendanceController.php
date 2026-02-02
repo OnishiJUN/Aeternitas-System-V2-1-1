@@ -253,7 +253,7 @@ class AttendanceController extends Controller
         $userRole = strtolower(trim($user->role ?? ''));
         
         // Log for debugging - CRITICAL for troubleshooting
-        \Log::info('Timekeeping access - START', [
+        Log::info('Timekeeping access - START', [
             'user_id' => $user->id,
             'user_email' => $user->email,
             'user_role_raw' => $user->role,

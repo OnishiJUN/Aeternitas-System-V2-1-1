@@ -49,7 +49,7 @@
                                     <div class="ml-4">
                                         <div class="text-sm font-medium text-gray-900">{{ $company->name }}</div>
                                         @if($company->description)
-                                            <div class="text-sm text-gray-500">{{ Str::limit($company->description, 50) }}</div>
+                                            <div class="text-sm text-gray-500">{{ \Illuminate\Support\Str::limit($company->description, 50) }}</div>
                                         @endif
                                     </div>
                                 </div>

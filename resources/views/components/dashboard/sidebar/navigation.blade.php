@@ -215,16 +215,16 @@
         </a>
         
         <!-- Reports -->
-        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-            <i class="fas fa-chart-bar mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+        <a href="{{ route('attendance.reports') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'attendance.reports' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-chart-bar mr-3 text-lg {{ $activeRoute === 'attendance.reports' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Reports</span>
         </a>
         @endif
         
         @if($user->role === 'admin')
         <!-- Settings -->
-        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-            <i class="fas fa-cog mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+        <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'hr.settings' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-cog mr-3 text-lg {{ $activeRoute === 'hr.settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Settings</span>
         </a>
         @endif
@@ -338,13 +338,13 @@
             <span>Leave Requests</span>
         </a>
 
-        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
+        <a href="{{ route('employees.index') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
             <i class="fas fa-user-friends mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
             <span>Team Directory</span>
         </a>
 
-        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-            <i class="fas fa-bell mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+        <a href="{{ route('notifications.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'notifications.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-bell mr-3 text-lg {{ $activeRoute === 'notifications.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Notifications</span>
         </a>
 

@@ -319,7 +319,7 @@ public function checkDuplicatePayroll(Request $request)
         }
         $employees = $employeesQuery->get();
         
-        return view('payrolls.create', compact('employees'));
+        return view('payroll.create', compact('employees'));
     }
 
     public function store(Request $request)
@@ -345,7 +345,7 @@ public function checkDuplicatePayroll(Request $request)
     public function show(Payroll $payroll)
     {
         $payroll->load('employee.department');
-        return view('payrolls.show', compact('payroll'));
+        return view('payroll.show', compact('payroll'));
     }
 
     public function edit(Payroll $payroll)
@@ -358,7 +358,7 @@ public function checkDuplicatePayroll(Request $request)
         }
         $employees = $employeesQuery->get();
         
-        return view('payrolls.edit', compact('payroll', 'employees'));
+        return view('payroll.edit', compact('payroll', 'employees'));
     }
 
     public function update(Request $request, Payroll $payroll)
@@ -423,6 +423,8 @@ public function checkDuplicatePayroll(Request $request)
 
     public function summary(Request $request)
     {
+        $user = Auth::user();
+        
         // Use the more comprehensive summary method that supports date filtering
         $startDate = $request->get('start_date', now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', now()->endOfMonth()->format('Y-m-d'));
@@ -437,9 +439,10 @@ public function checkDuplicatePayroll(Request $request)
             ->select([
                 DB::raw('YEAR(pay_period_start) as year'),
                 DB::raw('MONTH(pay_period_start) as month'),
-                DB::raw('SUM(gross_pay) as total_gross_pay'),
-                DB::raw('SUM(net_pay) as total_net_pay'),
-                DB::raw('COUNT(*) as payroll_count'),
+                DB::raw('SUM(gross_pay) as gross_pay'),
+                DB::raw('SUM(gross_pay - net_pay) as deductions'),
+                DB::raw('SUM(net_pay) as net_pay'),
+                DB::raw('COUNT(*) as count'),
             ])
             ->where('status', 'approved')
             ->groupBy('year', 'month')
@@ -448,11 +451,13 @@ public function checkDuplicatePayroll(Request $request)
             ->limit(12)
             ->get();
 
-        return view('payrolls.summary', compact('summary', 'monthly_data', 'startDate', 'endDate'));
+        return view('payroll.summary', compact('user', 'summary', 'monthly_data', 'startDate', 'endDate'));
     }
 
     public function monthlyReport(Request $request)
     {
+        $user = Auth::user();
+        
         $request->validate([
             'year' => 'required|integer|min:2020|max:2030',
             'month' => 'required|integer|min:1|max:12',
@@ -466,23 +471,14 @@ public function checkDuplicatePayroll(Request $request)
             ->with('employee.department')
             ->get();
 
-        // Also get department-wise report
-        $report = DB::table('payrolls')
-            ->join('employees', 'payrolls.employee_id', '=', 'employees.id')
-            ->join('departments', 'employees.department_id', '=', 'departments.id')
-            ->select([
-                'departments.name as department_name',
-                DB::raw('COUNT(payrolls.id) as employee_count'),
-                DB::raw('SUM(payrolls.gross_pay) as total_gross_pay'),
-                DB::raw('SUM(payrolls.net_pay) as total_net_pay'),
-            ])
-            ->whereYear('payrolls.pay_period_start', $request->year)
-            ->whereMonth('payrolls.pay_period_start', $request->month)
-            ->where('payrolls.status', 'approved')
-            ->groupBy('departments.id', 'departments.name')
-            ->get();
+        // Calculate report summary
+        $report = [
+            'total_employees' => $payrolls->count(),
+            'total_gross' => $payrolls->sum('gross_pay'),
+            'total_net' => $payrolls->sum('net_pay'),
+        ];
 
-        return view('payrolls.monthly', compact('payrolls', 'year', 'month', 'report'));
+        return view('payroll.monthly', compact('user', 'payrolls', 'year', 'month', 'report'));
     }
 
 

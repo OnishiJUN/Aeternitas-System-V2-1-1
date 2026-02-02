@@ -1,83 +1,28 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Attendance Records Report</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 10px;
-            margin: 0;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 18px;
-            color: #333;
-        }
-        .header p {
-            margin: 5px 0;
-            font-size: 12px;
-            color: #666;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th {
-            background-color: #4472C4;
-            color: white;
-            padding: 8px;
-            text-align: left;
-            font-weight: bold;
-            border: 1px solid #333;
-        }
-        td {
-            padding: 6px;
-            border: 1px solid #ddd;
-        }
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .footer {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 9px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Attendance Records Report</h1>
-        <p>Generated on: {{ $date }}</p>
-    </div>
+@extends('layouts.pdf-base')
 
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Employee Code</th>
-                <th>Employee Name</th>
-                <th>Department</th>
-                <th>Time In</th>
-                <th>Time Out</th>
-                <th>Hours Worked</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($records as $record)
-            <tr>
+@section('title', 'Attendance Records Report')
+
+@section('content')
+<div class="pdf-header">
+    <div class="document-title">Attendance Records Report</div>
+    <div class="document-info">Generated on: {{ $date }}</div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Employee Code</th>
+            <th>Employee Name</th>
+            <th>Department</th>
+            <th>Time In</th>
+            <th>Time Out</th>
+            <th>Hours Worked</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($records as $record)
                 <td>{{ \Carbon\Carbon::parse($record->date)->format('Y-m-d') }}</td>
                 <td>{{ $record->employee->employee_code ?? 'N/A' }}</td>
                 <td>{{ $record->employee->full_name ?? 'N/A' }}</td>

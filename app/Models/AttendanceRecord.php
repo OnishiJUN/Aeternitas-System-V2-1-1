@@ -80,10 +80,56 @@ class AttendanceRecord extends Model
     }
 
     /**
-     * Calculate total hours worked
+     * Multiple time entries per day relationship
+     */
+    public function timeEntries(): HasMany
+    {
+        return $this->hasMany(TimeEntry::class)->orderBy('time_in');
+    }
+
+    /**
+     * Get the currently active time entry (clocked in but not out)
+     */
+    public function getActiveTimeEntry()
+    {
+        return $this->timeEntries()->whereNull('time_out')->first();
+    }
+
+    /**
+     * Check if there's an active time entry
+     */
+    public function hasActiveTimeEntry(): bool
+    {
+        return $this->timeEntries()->whereNull('time_out')->exists();
+    }
+
+    /**
+     * Get the first time entry of the day (earliest time_in)
+     */
+    public function getFirstTimeEntry()
+    {
+        return $this->timeEntries()->orderBy('time_in', 'asc')->first();
+    }
+
+    /**
+     * Get the last time entry of the day (latest time_out or latest time_in if no time_out)
+     */
+    public function getLastTimeEntry()
+    {
+        return $this->timeEntries()->orderBy('time_in', 'desc')->first();
+    }
+
+    /**
+     * Calculate total hours worked from all time entries
      */
     public function calculateTotalHours(): float
     {
+        // If using new time_entries system
+        if ($this->relationLoaded('timeEntries') && $this->timeEntries->count() > 0) {
+            return $this->calculateTotalHoursFromEntries();
+        }
+
+        // Fallback to legacy single time_in/time_out
         if (!$this->time_in || !$this->time_out) {
             return 0;
         }
@@ -111,6 +157,28 @@ class AttendanceRecord extends Model
         $totalMinutes = max(0, $totalMinutes - $totalBreakMinutes);
 
         return round($totalMinutes / 60, 2);
+    }
+
+    /**
+     * Calculate total hours from all time entries (new multi-entry system)
+     */
+    public function calculateTotalHoursFromEntries(): float
+    {
+        $totalHours = 0;
+
+        foreach ($this->timeEntries as $entry) {
+            if ($entry->time_out) {
+                // Completed entry - use calculated hours
+                $totalHours += $entry->hours_worked > 0 ? $entry->hours_worked : $entry->calculateHoursWorked();
+            }
+            // Active entries (no time_out) are not counted until clocked out
+        }
+
+        // Subtract break time
+        $breakHours = $this->getTotalBreakMinutes() / 60;
+        $totalHours = max(0, $totalHours - $breakHours);
+
+        return round($totalHours, 2);
     }
 
     /**

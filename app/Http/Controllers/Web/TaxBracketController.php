@@ -47,7 +47,7 @@ class TaxBracketController extends Controller
     public function create()
     {
         $user = Auth::user();
-        return view('tax-brackets.create', compact('user'));
+        return view('tax-brackets.form', compact('user'));
     }
 
     /**
@@ -90,7 +90,7 @@ class TaxBracketController extends Controller
     public function edit(TaxBracket $taxBracket)
     {
         $user = Auth::user();
-        return view('tax-brackets.edit', compact('taxBracket', 'user'));
+        return view('tax-brackets.form', compact('taxBracket', 'user'));
     }
 
     /**
