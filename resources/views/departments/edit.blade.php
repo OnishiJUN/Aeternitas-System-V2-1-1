@@ -1,1 +1,0 @@
-@include('departments.form')
