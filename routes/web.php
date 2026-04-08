@@ -271,6 +271,18 @@ Route::get('/debug-current-payrolls', function() {
         
         // Delete file route
         Route::delete('/employee-personnel-files/{employeeId}/{category}/{filename}', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'deleteFile'])->name('employee-personnel-files.delete');
+        
+        // New Employee Screen Route
+        Route::get('/reports/new-employees', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'showNewEmployees'])->name('reports.new-employees');
+        
+        // End of Contracts Screen Route
+        Route::get('/reports/end-of-contracts', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'showEndOfContracts'])->name('reports.end-of-contracts');
+        
+        // End of Contracts AJAX Actions
+        Route::post('/reports/end-of-contracts/send-reminder/{employeeId}', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'sendReminder'])->name('reports.end-of-contracts.send-reminder');
+        Route::post('/reports/end-of-contracts/send-reminders', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'sendReminders'])->name('reports.end-of-contracts.send-reminders');
+        Route::post('/reports/end-of-contracts/generate-renewal-letters', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'generateRenewalLetters'])->name('reports.end-of-contracts.generate-renewal-letters');
+        Route::post('/reports/end-of-contracts/schedule-reminders', [App\Http\Controllers\Web\EmployeePersonnelFilesController::class, 'scheduleReminders'])->name('reports.end-of-contracts.schedule-reminders');
     });
     
     // Attendance routes

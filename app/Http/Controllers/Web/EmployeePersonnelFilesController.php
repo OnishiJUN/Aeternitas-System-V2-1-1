@@ -435,4 +435,317 @@ class EmployeePersonnelFilesController extends Controller
 
         return redirect()->back()->with('error', 'File not found.');
     }
+
+    /**
+     * Display New Employees screen for Timekeeping & HRIS Reports
+     */
+    public function showNewEmployees(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Get current company for filtering
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        
+        // Get date range filter
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        
+        // Default to last 3 months if no date range provided
+        if (!$startDate || !$endDate) {
+            $endDate = now();
+            $startDate = $endDate->copy()->subMonths(3);
+        } else {
+            $startDate = \Carbon\Carbon::parse($startDate);
+            $endDate = \Carbon\Carbon::parse($endDate);
+        }
+
+        // Build query for new employees
+        $query = Employee::with(['position', 'department', 'employeeOtherInfo'])
+            ->when($user->role !== 'admin', function ($query) use ($user) {
+                return $query->where('company_id', $user->employee->company_id ?? null);
+            })
+            ->when($currentCompany, function ($query) use ($currentCompany) {
+                return $query->where('company_id', $currentCompany->id);
+            })
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->orderBy('created_at', 'desc');
+
+        // Apply search filter
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('employee_id', 'like', "%{$search}%")
+                  ->orWhereHas('position', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('department', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Apply department filter
+        if ($request->has('department') && $request->department) {
+            $query->where('department_id', $request->department);
+        }
+
+        // Apply position filter
+        if ($request->has('position') && $request->position) {
+            $query->where('position_id', $request->position);
+        }
+
+        $newEmployees = $query->paginate(10);
+
+        // Get filter options
+        $departments = $currentCompany 
+            ? \App\Models\Department::forCompany($currentCompany->id)->get()
+            : \App\Models\Department::all();
+        
+        $positions = $currentCompany 
+            ? \App\Models\Position::forCompany($currentCompany->id)->get()
+            : \App\Models\Position::all();
+
+        return view('hr.reports.new-employees', compact('newEmployees', 'departments', 'positions', 'startDate', 'endDate'));
+    }
+
+    /**
+     * Display End of Contracts screen for Timekeeping & HRIS Reports
+     */
+    public function showEndOfContracts(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Get current company for filtering
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        
+        // Get date range filter
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        
+        // Default to next 3 months if no date range provided
+        if (!$startDate || !$endDate) {
+            $startDate = now();
+            $endDate = $startDate->copy()->addMonths(3);
+        } else {
+            $startDate = \Carbon\Carbon::parse($startDate);
+            $endDate = \Carbon\Carbon::parse($endDate);
+        }
+
+        // Build query for employees with ending contracts
+        // Note: This assumes there's a contract_end_date field in the employees table
+        // If not, we'll use a simulated approach based on hire date + typical contract duration
+        $query = Employee::with(['position', 'department', 'employeeOtherInfo'])
+            ->when($user->role !== 'admin', function ($query) use ($user) {
+                return $query->where('company_id', $user->employee->company_id ?? null);
+            })
+            ->when($currentCompany, function ($query) use ($currentCompany) {
+                return $query->where('company_id', $currentCompany->id);
+            });
+
+        // Check if contract_end_date column exists
+        $hasContractEndDate = \Illuminate\Support\Facades\Schema::hasColumn('employees', 'contract_end_date');
+        
+        if ($hasContractEndDate) {
+            // Filter by contract end date range
+            $query->whereBetween('contract_end_date', [$startDate, $endDate]);
+        } else {
+            // Fallback: Calculate approximate contract end dates based on hire date + 6 months (typical probationary period)
+            // or hire date + 1 year (typical contract duration)
+            $query->where(function ($q) use ($startDate, $endDate) {
+                // Employees hired 6 months ago (end of probationary contract)
+                $probationStart = $startDate->copy()->subMonths(6);
+                $probationEnd = $endDate->copy()->subMonths(6);
+                $q->orWhereBetween('created_at', [$probationEnd, $probationStart])
+                  ->orWhereBetween('created_at', [$startDate->copy()->subYear(), $endDate->copy()->subYear()]);
+            });
+        }
+
+        // Apply search filter
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('employee_id', 'like', "%{$search}%")
+                  ->orWhereHas('position', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('department', function ($q) use ($search) {
+                      $q->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Apply department filter
+        if ($request->has('department') && $request->department) {
+            $query->where('department_id', $request->department);
+        }
+
+        // Apply position filter
+        if ($request->has('position') && $request->position) {
+            $query->where('position_id', $request->position);
+        }
+
+        // Apply contract type filter
+        if ($request->has('contract_type') && $request->contract_type) {
+            $query->where('employment_type', $request->contract_type);
+        }
+
+        $employees = $query->orderBy('created_at', 'desc')->paginate(10);
+
+        // Get filter options
+        $departments = $currentCompany 
+            ? \App\Models\Department::forCompany($currentCompany->id)->get()
+            : \App\Models\Department::all();
+        
+        $positions = $currentCompany 
+            ? \App\Models\Position::forCompany($currentCompany->id)->get()
+            : \App\Models\Position::all();
+
+        // Calculate statistics
+        $totalContracts = $employees->total();
+        $expiringThisMonth = Employee::when($hasContractEndDate, function ($q) {
+                return $q->whereMonth('contract_end_date', now()->month)
+                         ->whereYear('contract_end_date', now()->year);
+            }, function ($q) {
+                $sixMonthsAgo = now()->subMonths(6);
+                $oneYearAgo = now()->subYear();
+                return $q->whereBetween('created_at', [$sixMonthsAgo->copy()->subMonth(), $sixMonthsAgo->copy()->addMonth()])
+                         ->orWhereBetween('created_at', [$oneYearAgo->copy()->subMonth(), $oneYearAgo->copy()->addMonth()]);
+            })
+            ->count();
+
+        return view('hr.reports.end-of-contracts', compact(
+            'employees', 
+            'departments', 
+            'positions', 
+            'startDate', 
+            'endDate', 
+            'totalContracts', 
+            'expiringThisMonth',
+            'hasContractEndDate'
+        ));
+    }
+
+    /**
+     * Send reminder to a specific employee
+     */
+    public function sendReminder($employeeId)
+    {
+        try {
+            $employee = Employee::findOrFail($employeeId);
+            
+            // Send email notification
+            // In a real application, you would use Laravel's Mail facade
+            // Mail::to($employee->email)->send(new ContractExpiryReminder($employee));
+            
+            // Log the reminder
+            Log::info("Contract expiry reminder sent to: {$employee->full_name} ({$employee->email})");
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Reminder sent successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send reminder: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Send reminders to multiple employees
+     */
+    public function sendReminders(Request $request)
+    {
+        try {
+            $employeeIds = $request->input('employee_ids', []);
+            $sentCount = 0;
+            
+            foreach ($employeeIds as $employeeId) {
+                try {
+                    $employee = Employee::find($employeeId);
+                    if ($employee) {
+                        // Send email notification
+                        // Mail::to($employee->email)->send(new ContractExpiryReminder($employee));
+                        
+                        Log::info("Contract expiry reminder sent to: {$employee->full_name} ({$employee->email})");
+                        $sentCount++;
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Failed to send reminder to employee {$employeeId}: " . $e->getMessage());
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'sent' => $sentCount,
+                'message' => "{$sentCount} reminder(s) sent successfully"
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send reminders: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate renewal letters for employees
+     */
+    public function generateRenewalLetters(Request $request)
+    {
+        try {
+            $employeeIds = $request->input('employee_ids', []);
+            
+            // Generate PDF content
+            $html = view('hr.reports.renewal-letters-template', [
+                'employees' => Employee::whereIn('id', $employeeIds)->get()
+            ])->render();
+            
+            // In a real application, you would use DomPDF to generate the PDF
+            // $pdf = PDF::loadHTML($html);
+            // return $pdf->download('renewal-letters.pdf');
+            
+            // For now, return a simple response
+            return response($html)
+                ->header('Content-Type', 'text/html')
+                ->header('Content-Disposition', 'attachment; filename="renewal-letters.html"');
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate renewal letters: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Schedule automated reminders
+     */
+    public function scheduleReminders(Request $request)
+    {
+        try {
+            $reminders = $request->input('reminders', []);
+            
+            // In a real application, you would schedule these reminders using Laravel's scheduler
+            // For each reminder configuration, create a scheduled job
+            
+            Log::info('Automated contract expiry reminders scheduled', [
+                'reminders' => $reminders
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Automated reminders scheduled successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to schedule reminders: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

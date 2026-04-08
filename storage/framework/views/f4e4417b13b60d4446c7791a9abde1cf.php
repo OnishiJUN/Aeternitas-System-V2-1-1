@@ -314,13 +314,11 @@ unset($__defined_vars, $__key, $__value); ?>
                             <i class="fas fa-birthday-cake mr-3 text-gray-400"></i>
                             <span>Birthdays per Month</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
+                        <a href="<?php echo e(route('hr.reports.new-employees')); ?>" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors <?php echo e($activeRoute === 'hr.reports.new-employees' ? 'bg-blue-50 text-blue-600' : ''); ?>">
                             <i class="fas fa-user-plus mr-3 text-gray-400"></i>
                             <span>New Employees</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
+                        <a href="<?php echo e(route('hr.reports.end-of-contracts')); ?>" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors <?php echo e($activeRoute === 'hr.reports.end-of-contracts' ? 'bg-blue-50 text-blue-600' : ''); ?>">
                             <i class="fas fa-hourglass-end mr-3 text-gray-400"></i>
                             <span>End of Contracts</span>
                         </a>
