@@ -1,0 +1,42 @@
+{
+<<<<<<< HEAD
+    "$schema": "https://json.schemastore.org/package.json",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite",
+        "watch": "vite build --watch",
+        "hot": "vite --host"
+    },
+    "devDependencies": {
+        "@tailwindcss/forms": "^0.5.7",
+        "@tailwindcss/typography": "^0.5.10",
+        "autoprefixer": "^10.4.16",
+        "axios": "^1.6.2",
+        "laravel-vite-plugin": "^1.0.0",
+        "postcss": "^8.4.32",
+        "tailwindcss": "^3.3.6",
+        "vite": "^6.4.1"
+    },
+    "dependencies": {
+        "@fortawesome/fontawesome-free": "^6.5.1",
+        "alpinejs": "^3.15.6"
+    }
+=======
+  "name": "aeternitas-desktop-app",
+  "version": "0.1.0",
+  "description": "Desktop shell for Aeternitas payroll system",
+  "main": "main.js",
+  "author": "Aeternitas",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "setup:backend": "cd backend && composer install && npm install && npm run build"
+  },
+  "dependencies": {
+    "electron": "^32.0.0"
+  }
+>>>>>>> 6f17595582846178fab1e2c3e10b3df5416f8ad4
+}
